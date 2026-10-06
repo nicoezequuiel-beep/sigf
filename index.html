@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SIGF · Etapa 1 · Maestro de unidades y documentación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css?v=1">
+</head>
+<body>
+<div class="shell"><aside class="side"><div class="sb"><img src="./logo-ihsa.png" alt="Grupo IHSA"><span>SIGF · Gestión de flota</span></div><div class="sl">Administración</div><nav id="nav" aria-label="Principal"></nav>
+<div class="sf"><label class="role">Rol <select id="role" aria-label="Rol de usuario"><option value="consulta">Consulta</option><option value="carga" selected>Carga</option><option value="admin">Administrador</option></select></label><div class="row"><button id="th" class="thb" type="button" aria-label="Cambiar entre modo claro y oscuro">🌙</button><span>Emergencias Salud<br>Flota y logística</span></div></div></aside>
+<div class="ws"><div class="tb"><div><strong id="tt">Buscar unidad</strong><small>Maestro de unidades y documentación · Etapa 1</small></div><time id="td"></time></div>
+<div class="strip"><span><b>DEMO</b> · Datos ficticios, los cambios se pierden al recargar</span><button class="btn s" id="rs" type="button">Restablecer demo</button></div>
+<main id="app"></main></div></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="modal"></div>
+<script src="./app.js?v=1"></script>
+</body>
+</html>
