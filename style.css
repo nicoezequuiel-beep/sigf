@@ -129,3 +129,18 @@ main{max-width:1200px;margin:auto;padding:30px}
 @media(min-width:900px){body{padding-left:0}}
 @media(max-width:880px){.shell{grid-template-columns:1fr}.side{position:static;height:auto;padding:16px}.sl{display:none}#nav{display:flex;overflow-x:auto;padding-top:12px;gap:6px}#nav button{width:auto;white-space:nowrap;padding:10px 11px}.sf{margin-top:12px;padding-top:12px}.sf .row{justify-content:space-between}.tb,.strip{padding-left:16px;padding-right:16px}main{padding:22px 16px 40px}}
 @media(max-width:600px){.sb img{width:86px}.stats{gap:8px}.mc{padding:12px 10px}.mc strong{font-size:22px}.tb time{display:none}.strip{align-items:flex-start}}
+
+/* Datos de flota importados */
+.source-note{max-width:620px;margin:28px auto;text-align:left}
+.source-note p{margin:8px 0 0;font-size:15px}
+.pill.neutral{background:var(--pri-t);color:var(--mut)}
+.pill.warn{background:#fff0cf;color:#7b4b00}
+:root[data-theme="dark"] .pill.warn{background:#443617;color:#ffd478}
+.grid{overflow-wrap:anywhere}
+#searchCount{min-height:24px}
+.filters select{max-width:100%}
+.strip{gap:12px;flex-wrap:wrap}
+#unitForm button{cursor:pointer}
+@media(max-width:600px){.sug button{flex-wrap:wrap}.sug .sp{display:none}.sug .mut{width:100%}.row h2{overflow-wrap:anywhere}.filters>*{width:100%}}
+
+.sf .role select{color:var(--ink);background:var(--panel)}
