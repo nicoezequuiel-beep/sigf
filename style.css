@@ -25,7 +25,7 @@ main{max-width:1080px;margin:auto;padding:24px 16px 64px}
 .plate-box{background:var(--plate);border:3px solid #111;border-radius:12px;overflow:hidden;box-shadow:0 2px 0 #111}
 .plate-top{background:var(--brand);color:#fff;font:600 12px "Nunito Sans",sans-serif;padding:3px 12px;display:flex;justify-content:space-between}
 .plate input{width:100%;border:0;background:transparent;text-align:center;font:700 clamp(34px,8vw,52px)/1.2 "IBM Plex Mono",monospace;letter-spacing:.06em;color:var(--plate-ink);padding:8px 12px;text-transform:uppercase}
-.plate input::placeholder{color:#a4adb5}
+.plate input::placeholder{color:#687582;opacity:1;font-size:clamp(18px,4.5vw,30px);letter-spacing:.03em}
 .plate input:focus-visible{outline:none}
 .plate-box:focus-within{outline:3px solid var(--acc);outline-offset:3px}
 .sug{list-style:none;margin:8px 0 0;padding:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
