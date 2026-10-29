@@ -18,7 +18,8 @@ try {
   const saved = JSON.parse(localStorage.getItem(STORAGE) || "null");
   if (saved && saved.sourceVersion === SOURCE.importedAt && Array.isArray(saved.units)) units = saved.units;
 } catch (_) { storageMessage = "No se pudieron recuperar las ediciones locales."; }
-const S = {view:"buscar",sel:null,f:{q:"",base:"",est:"",vtv:""}};
+const S = {view:"buscar",sel:null,f:{q:"",base:"",area:""},docs:{q:"",base:"",area:""},selected:new Set()};
+const areaLabel = value => value === "TRAS. ESPECIAL" ? "Traslados" : value || "Sin dato";
 const role = () => $("#role").value;
 const canEdit = () => role() !== "consulta";
 const statusLabel = code => code === "OPER" ? "Operativa · OPER" : code || "Sin dato";
@@ -40,7 +41,7 @@ function save() {
 }
 function go(view,sel) {S.view=view; S.sel=sel ?? null; render();}
 function nav() {
-  const items=[["buscar","⌕","Buscar"],["unidades","▦","Unidades"]];
+  const items=[["buscar","⌕","Buscar"],["unidades","▦","Unidades"],["documentacion","⇩","Descarga de documentación"]];
   if(canEdit()) items.push(["nueva","＋","Nueva unidad"]);
   if(role()==="admin") items.push(["usuarios","☰","Usuarios"]);
   $("#nav").innerHTML=items.map(([v,i,l])=>'<button data-v="'+v+'" aria-current="'+((S.view==="ficha"?"unidades":S.view)===v)+'"><span class="ni" aria-hidden="true">'+i+'</span>'+l+'</button>').join("");
@@ -85,9 +86,20 @@ function search() {
   input.focus();
 }
 function options(values,current) {return [...new Set(values.filter(Boolean))].sort().map(v=>'<option value="'+esc(v)+'" '+(v===current?"selected":"")+'>'+esc(v)+'</option>').join("");}
-function filtered() {
-  const f=S.f, result=f.q?new Set(matches(f.q).map(u=>u.plate)):null;
-  return units.filter(u=>(!result||result.has(u.plate))&&(!f.base||u.base===f.base)&&(!f.est||u.estado===f.est)&&(!f.vtv||vtvStatus(u).key===f.vtv));
+function filtered(f=S.f) {
+  const result=f.q?new Set(matches(f.q).map(u=>u.plate)):null;
+  return units.filter(u=>(!result||result.has(u.plate))&&(!f.base||u.base===f.base)&&(!f.area||u.area===f.area));
+}
+function fleetFilters(f) {
+  return '<div class="filters"><input id="fq" placeholder="Patente / móvil" value="'+esc(f.q)+'" aria-label="Filtrar por patente o móvil">'+
+    '<select id="ft" aria-label="Emplazamiento"><option value="">Todos los emplazamientos</option>'+options(units.map(u=>u.base),f.base)+'</select>'+
+    '<select id="fe" aria-label="Tipo de móvil"><option value="">Todos los tipos de móvil</option>'+[...new Set(units.map(u=>u.area).filter(Boolean))].sort().map(v=>'<option value="'+esc(v)+'" '+(v===f.area?'selected':'')+'>'+esc(areaLabel(v))+'</option>').join('')+'</select>'+
+    '<button class="btn" id="clear">Limpiar filtros</button></div>';
+}
+function bindFilters(f,draw) {
+  $("#fq").oninput=e=>{f.q=e.target.value;draw();};
+  [["ft","base"],["fe","area"]].forEach(([id,key])=>$("#"+id).onchange=e=>{f[key]=e.target.value;draw();});
+  $("#clear").onclick=()=>{Object.assign(f,{q:"",base:"",area:""});$("#fq").value="";$("#ft").value="";$("#fe").value="";draw();};
 }
 function listado() {
   const f=S.f;
@@ -95,23 +107,17 @@ function listado() {
     '<div class="stats"><div class="mc"><span>Móviles cargados</span><strong>'+units.length+'</strong></div>'+
     '<div class="mc"><span>Operativas · OPER</span><strong>'+units.filter(u=>u.estado==="OPER").length+'</strong></div>'+
     '<div class="mc"><span>VTV vencidas · todos los estados</span><strong>'+units.filter(u=>vtvStatus(u).key==="vencida").length+'</strong></div></div>'+
-    '<div class="filters"><input id="fq" placeholder="Patente o número de móvil" value="'+esc(f.q)+'" aria-label="Filtrar por patente o móvil">'+
-    '<select id="ft" aria-label="Base"><option value="">Todas las bases</option>'+options(units.map(u=>u.base),f.base)+'</select>'+
-    '<select id="fe" aria-label="Estado"><option value="">Todos los estados</option>'+options(units.map(u=>u.estado),f.est)+'</select>'+
-    '<select id="fv" aria-label="VTV"><option value="">Todas las VTV</option>'+[["vencida","Vencidas"],["proxima","Vencen en 30 días"],["vigente","Vigentes"],["sin","Sin dato"]].map(([v,l])=>'<option value="'+v+'" '+(v===f.vtv?"selected":"")+'>'+l+'</option>').join("")+'</select>'+
-    '<button class="btn" id="clear">Limpiar filtros</button><button class="btn" id="ex">Exportar CSV</button></div>'+
-    '<p class="mut" id="resultCount" aria-live="polite"></p><div class="tw"><table><thead><tr><th>Patente</th><th>Móvil</th><th>Base</th><th>Clase</th><th>Estado del Excel</th><th>Vencimiento VTV</th></tr></thead><tbody id="tb"></tbody></table></div>';
+    fleetFilters(f)+'<button class="btn" id="ex">Exportar CSV</button>'+
+    '<p class="mut" id="resultCount" aria-live="polite"></p><div class="tw"><table><thead><tr><th>Patente</th><th>Móvil</th><th>Emplazamiento</th><th>Tipo de móvil</th><th>Clase</th><th>Estado del Excel</th><th>Vencimiento VTV</th></tr></thead><tbody id="tb"></tbody></table></div>';
   const draw=()=>{
     const result=filtered();$("#resultCount").textContent=result.length+" de "+units.length+" móviles";
-    $("#tb").innerHTML=result.map(u=>'<tr tabindex="0" data-id="'+esc(u.plate)+'"><td class="pl">'+esc(u.plate)+'</td><td>'+esc(u.mov)+'</td><td>'+esc(u.base||"Sin dato")+'</td><td>'+esc(u.tipo||"Sin dato")+'</td><td>'+esc(statusLabel(u.estado))+'</td><td>'+fmt(u.vtv)+'<br>'+badge(u)+'</td></tr>').join("")||'<tr><td colspan="6" class="mut">Ningún móvil coincide con los filtros.</td></tr>';
+    $("#tb").innerHTML=result.map(u=>'<tr tabindex="0" data-id="'+esc(u.plate)+'"><td class="pl">'+esc(u.plate)+'</td><td>'+esc(u.mov)+'</td><td>'+esc(u.base||"Sin dato")+'</td><td>'+esc(areaLabel(u.area))+'</td><td>'+esc(u.tipo||"Sin dato")+'</td><td>'+esc(statusLabel(u.estado))+'</td><td>'+fmt(u.vtv)+'<br>'+badge(u)+'</td></tr>').join("")||'<tr><td colspan="7" class="mut">Ningún móvil coincide con los filtros.</td></tr>';
     $("#tb").querySelectorAll("[data-id]").forEach(t=>{t.onclick=()=>go("ficha",t.dataset.id);t.onkeydown=e=>{if(e.key==="Enter")go("ficha",t.dataset.id);};});
   };
-  $("#fq").oninput=e=>{f.q=e.target.value;draw();};
-  [["ft","base"],["fe","est"],["fv","vtv"]].forEach(([id,key])=>$("#"+id).onchange=e=>{f[key]=e.target.value;draw();});
-  $("#clear").onclick=()=>{S.f={q:"",base:"",est:"",vtv:""};listado();};
+  bindFilters(f,draw);
   $("#ex").onclick=()=>{
     const cell=value=>'"'+String(value??"").replace(/"/g,'""').replace(/^[=+@-]/,"'$&")+'"';
-    const rows=[["Patente","Móvil","Base","Estado","Vencimiento VTV","Observaciones"],...filtered().map(u=>[u.plate,u.mov,u.base,u.estado,fmt(u.vtv),u.obs])];
+    const rows=[["Patente","Móvil","Emplazamiento","Tipo de móvil","Estado","Vencimiento VTV","Observaciones"],...filtered().map(u=>[u.plate,u.mov,u.base,areaLabel(u.area),u.estado,fmt(u.vtv),u.obs])];
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+rows.map(r=>r.map(cell).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"}));a.download="SIGF-moviles.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   }; draw();
 }
@@ -170,15 +176,15 @@ function usuarios(){
 }
 function render(){
   closeModal();if(S.view==="usuarios"&&role()!=="admin")S.view="buscar";
-  nav();$("#tt").textContent=({buscar:"Buscar unidad",unidades:"Unidades",ficha:"Ficha de unidad",usuarios:"Usuarios y roles"})[S.view];
-  ({buscar:search,unidades:listado,ficha,usuarios})[S.view]();window.scrollTo(0,0);
+  nav();$("#tt").textContent=({buscar:"Buscar unidad",unidades:"Unidades",documentacion:"Descarga de documentación",ficha:"Ficha de unidad",usuarios:"Usuarios y roles"})[S.view];
+  ({buscar:search,unidades:listado,documentacion,ficha,usuarios})[S.view]();window.scrollTo(0,0);
 }
 $("#role").onchange=render;
 $("#rs").onclick=()=>modal('<h3 id="dialogTitle">Restablecer datos del Excel</h3><p>Se eliminarán las altas y ediciones guardadas en este navegador. El Excel original conserva sus datos.</p><div class="row"><button class="btn" data-x>Cancelar</button><button class="btn p" id="confirmReset">Restablecer</button></div>');
 $("#modal").addEventListener("click",e=>{
   if(e.target.id==="confirmReset"){
     try{localStorage.removeItem(STORAGE);}catch(_){toast("No se pudo restablecer el almacenamiento del navegador.");return;}
-    units=structuredClone(SOURCE.units);S.f={q:"",base:"",est:"",vtv:""};go("buscar");toast("Datos originales del Excel restaurados.");
+    units=structuredClone(SOURCE.units);S.f={q:"",base:"",area:""};S.docs={q:"",base:"",area:""};S.selected.clear();go("buscar");toast("Datos originales del Excel restaurados.");
   }
 });
 $("#td").textContent=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
