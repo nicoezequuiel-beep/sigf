@@ -1,7 +1,7 @@
 window.SIGF_DATA = {
   "source": "Fechas VTV moviles.xlsm",
   "sheet": "Listado",
-  "importedAt": "2026-10-06T11:53:11",
+  "importedAt": "2026-10-30T15:24:33",
   "units": [
     {
       "plate": "NGG291",
@@ -47,7 +47,7 @@ window.SIGF_DATA = {
       "area": "TRAS. ESPECIAL",
       "tipo": "MIDIBUS",
       "vtv": "2026-10-07",
-      "obs": "Turno programado 07/10/2026 a las 9:00",
+      "obs": "NO SACAR, ESPERAR CAMBIO DE TIPO",
       "sourceRow": 4,
       "hist": []
     },
@@ -175,7 +175,7 @@ window.SIGF_DATA = {
       "area": "TRAS. ESPECIAL",
       "tipo": "FAMILIAR",
       "vtv": "2027-09-30",
-      "obs": "",
+      "obs": "m",
       "sourceRow": 12,
       "hist": []
     },
@@ -526,8 +526,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "MIDIBUS",
-      "vtv": "2026-09-27",
-      "obs": "Turno programado 13/10/2026 a las 9:00",
+      "vtv": "2027-04-13",
+      "obs": "",
       "sourceRow": 34,
       "hist": []
     },
@@ -542,8 +542,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "MIDIBUS",
-      "vtv": "2026-10-14",
-      "obs": "Turno programado 08/10/2026 a las 9:00",
+      "vtv": "2027-04-08",
+      "obs": "",
       "sourceRow": 35,
       "hist": []
     },
@@ -606,7 +606,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "TRANSPORTE",
-      "vtv": "2026-10-30",
+      "vtv": "2027-02-28",
       "obs": "",
       "sourceRow": 39,
       "hist": []
@@ -871,7 +871,7 @@ window.SIGF_DATA = {
       "plate": "AF639KM",
       "mov": "521",
       "ceco": "CONO01901A",
-      "estado": "OPER",
+      "estado": "NOPM",
       "anio": "2022",
       "ubicacion": "UTIM - CABA",
       "base": "CABA",
@@ -879,7 +879,7 @@ window.SIGF_DATA = {
       "area": "UTIM",
       "tipo": "AMBULANCIA",
       "vtv": "2026-10-22",
-      "obs": "",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 56,
       "hist": []
     },
@@ -894,7 +894,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-22",
+      "vtv": "2027-10-13",
       "obs": "",
       "sourceRow": 57,
       "hist": []
@@ -974,8 +974,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-08",
-      "obs": "Turno programado 1/10/2026 a las 11:00",
+      "vtv": "2027-10-07",
+      "obs": "",
       "sourceRow": 62,
       "hist": []
     },
@@ -1022,8 +1022,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-07",
-      "obs": "Turno programado 06/10/2026 a las 11:00",
+      "vtv": "2027-10-06",
+      "obs": "",
       "sourceRow": 65,
       "hist": []
     },
@@ -1230,7 +1230,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "OPERACIONES",
       "tipo": "FAMILIAR",
-      "vtv": "",
+      "vtv": "2030-01-01",
       "obs": "",
       "sourceRow": 78,
       "hist": []
@@ -1246,7 +1246,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "OPERACIONES",
       "tipo": "SEDAN4PTAS",
-      "vtv": "2026-10-31",
+      "vtv": "2027-10-31",
       "obs": "",
       "sourceRow": 79,
       "hist": []
@@ -2222,7 +2222,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-29",
+      "vtv": "2027-10-23",
       "obs": "",
       "sourceRow": 140,
       "hist": []
@@ -2238,7 +2238,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-29",
+      "vtv": "2027-10-29",
       "obs": "",
       "sourceRow": 141,
       "hist": []
@@ -2926,8 +2926,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-31",
-      "obs": "",
+      "vtv": "2027-01-18",
+      "obs": "RECHAZADA",
       "sourceRow": 184,
       "hist": []
     },
@@ -2943,7 +2943,7 @@ window.SIGF_DATA = {
       "area": "TRAS. ESPECIAL",
       "tipo": "TRANSPORTE",
       "vtv": "2026-10-30",
-      "obs": "",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 185,
       "hist": []
     },
@@ -3102,7 +3102,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-11-11",
+      "vtv": "2027-10-28",
       "obs": "",
       "sourceRow": 195,
       "hist": []
@@ -3166,7 +3166,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-11-01",
+      "vtv": "2027-10-27",
       "obs": "",
       "sourceRow": 199,
       "hist": []
@@ -3199,7 +3199,7 @@ window.SIGF_DATA = {
       "area": "UTIM",
       "tipo": "AMBULANCIA",
       "vtv": "2026-11-11",
-      "obs": "",
+      "obs": "Turno programado 27/10/2026 a las 13:00",
       "sourceRow": 201,
       "hist": []
     },
@@ -3662,8 +3662,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "COORDINACIÓN",
       "tipo": "PICKUP",
-      "vtv": "2026-09-30",
-      "obs": "NO SACAR TURNO TODAVIA",
+      "vtv": "2027-10-29",
+      "obs": "",
       "sourceRow": 230,
       "hist": []
     },
@@ -3719,7 +3719,7 @@ window.SIGF_DATA = {
       "plate": "MTB015",
       "mov": "244",
       "ceco": "CDGD01901A",
-      "estado": "OPER",
+      "estado": "URU",
       "anio": "2013",
       "ubicacion": "GERENCIA GENERAL",
       "base": "GERENCGRAL",
@@ -4030,8 +4030,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-15",
-      "obs": "Turno programado 07/10/2026 a las 11:00",
+      "vtv": "2027-10-01",
+      "obs": "",
       "sourceRow": 253,
       "hist": []
     },
@@ -4206,7 +4206,7 @@ window.SIGF_DATA = {
       "local": "",
       "area": "UTIM",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-22",
+      "vtv": "2027-10-22",
       "obs": "",
       "sourceRow": 264,
       "hist": []
@@ -4223,7 +4223,7 @@ window.SIGF_DATA = {
       "area": "TRAS. ESPECIAL",
       "tipo": "AMBULANCIA",
       "vtv": "2026-10-27",
-      "obs": "",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 265,
       "hist": []
     },
@@ -4255,7 +4255,7 @@ window.SIGF_DATA = {
       "area": "UTIM",
       "tipo": "AMBULANCIA",
       "vtv": "2026-10-31",
-      "obs": "",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 267,
       "hist": []
     },
@@ -4263,7 +4263,7 @@ window.SIGF_DATA = {
       "plate": "AB870SS",
       "mov": "182",
       "ceco": "CONO01902N",
-      "estado": "OPER",
+      "estado": "NOPM",
       "anio": "2017",
       "ubicacion": "UTIM - NORTE",
       "base": "NORTE",
@@ -4271,7 +4271,7 @@ window.SIGF_DATA = {
       "area": "UTIM",
       "tipo": "AMBULANCIA",
       "vtv": "2026-10-24",
-      "obs": "",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 268,
       "hist": []
     },
@@ -4446,8 +4446,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-13",
-      "obs": "Turno programado 09/10/2026 a las 9:00",
+      "vtv": "2027-10-14",
+      "obs": "",
       "sourceRow": 279,
       "hist": []
     },
@@ -4455,7 +4455,7 @@ window.SIGF_DATA = {
       "plate": "AA088AW",
       "mov": "165",
       "ceco": "CONO01901A",
-      "estado": "OPER",
+      "estado": "VENT",
       "anio": "2016",
       "ubicacion": "UTIM - CABA",
       "base": "CABA",
@@ -4487,7 +4487,7 @@ window.SIGF_DATA = {
       "plate": "AA088AS",
       "mov": "161",
       "ceco": "CNON08902O",
-      "estado": "OPER",
+      "estado": "VENT",
       "anio": "2016",
       "ubicacion": "UTIM MEDICARDIO",
       "base": "MEDICARDIO",
@@ -4527,7 +4527,7 @@ window.SIGF_DATA = {
       "area": "UTIM",
       "tipo": "AMBULANCIA",
       "vtv": "2027-09-29",
-      "obs": "CONIDICONALL",
+      "obs": "NO SACAR TURNO TODAVIA",
       "sourceRow": 284,
       "hist": []
     },
@@ -4686,8 +4686,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "TRAS. ESPECIAL",
       "tipo": "AMBULANCIA",
-      "vtv": "2026-10-15",
-      "obs": "Turno programado 08/10/2026 a las 14:00",
+      "vtv": "2027-10-08",
+      "obs": "",
       "sourceRow": 294,
       "hist": []
     },
@@ -4862,8 +4862,8 @@ window.SIGF_DATA = {
       "local": "",
       "area": "LOGISTICA",
       "tipo": "FURGONETA",
-      "vtv": "2026-08-01",
-      "obs": "Turno programado 14/09 a las 11:00",
+      "vtv": "2027-07-01",
+      "obs": "",
       "sourceRow": 305,
       "hist": []
     },
