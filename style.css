@@ -166,5 +166,8 @@ main{max-width:1200px;margin:auto;padding:30px}
 .document-modified{font-size:12px;line-height:1.5;color:var(--mut);margin:0 0 16px}
 .document-tile .btn{width:100%;display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box;white-space:normal}
 .document-missing{background:var(--panel)}
+.document-actions{display:flex;gap:8px}
+.document-actions .btn{width:auto;flex:1;min-width:0}
+.document-actions .btn:not(.p){color:var(--ink)}
 .modal .card:has(.document-tiles){max-width:1000px}
 @media(max-width:850px){.document-tiles{grid-template-columns:1fr}.document-tile{min-height:210px}}

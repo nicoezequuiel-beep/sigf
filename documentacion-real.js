@@ -18,9 +18,10 @@ function automaticFileList(entries) {
   const types=[['VTV/RTO','VTV'],['Seguro','Seguro'],['Cédula','Cédula']];
   return '<div class="document-tiles">'+types.map(([type,label])=>{
     const entry=entries.find(e=>e.type===type);
+    const canPreview=entry&&/\.(pdf|jpe?g|png|gif|webp|bmp|avif)$/i.test(entry.name);
     const icon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></svg>';
     return '<article class="document-tile '+(entry?'':'document-missing')+'" data-document-type="'+esc(type)+'"><div class="document-tile-top"><span class="document-icon">'+icon+'</span><span class="pill '+(entry?'ok':'neutral')+'">'+(entry?'Disponible':'Sin archivo')+'</span></div><h4>'+label+'</h4>'+
-      (entry?'<p class="document-file-name">'+esc(entry.name)+'</p><p class="document-modified">Modificado: '+esc(new Date(entry.modified*1000).toLocaleString('es-AR',{timeZone:'America/Buenos_Aires'}))+'</p><a class="btn p" href="'+esc(entry.url)+'" download aria-label="Descargar '+label+'">Descargar '+label+'</a>':'<p class="document-file-name mut">No se encontró un archivo asociado a esta patente.</p><button class="btn" disabled>Sin archivo</button>')+'</article>';
+      (entry?'<p class="document-file-name">'+esc(entry.name)+'</p><p class="document-modified">Modificado: '+esc(new Date(entry.modified*1000).toLocaleString('es-AR',{timeZone:'America/Buenos_Aires'}))+'</p><div class="document-actions">'+(canPreview?'<a class="btn" href="'+esc(entry.url)+'?view=1" target="_blank" rel="noopener noreferrer" aria-label="Ver '+label+' en otra pestaña">Ver</a>':'<button class="btn" disabled title="Este formato requiere descargarlo para abrirlo">Ver</button>')+'<a class="btn p" href="'+esc(entry.url)+'" download aria-label="Descargar '+label+'">Descargar</a></div>':'<p class="document-file-name mut">No se encontró un archivo asociado a esta patente.</p><button class="btn" disabled>Sin archivo</button>')+'</article>';
   }).join('')+'</div>';
 }
 function automaticCoverageNote(manifest) {

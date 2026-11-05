@@ -40,6 +40,8 @@ La ficha de cada móvil consulta automáticamente los archivos del servidor por 
 - Los datos editados siguen siendo locales a cada navegador. El selector de roles no autentica personas. El servicio habilita consulta a quienes puedan acceder a su dirección interna; no reproduce permisos individuales del recurso compartido.
 
 ### Funcionamiento de los documentos
+
+Cada tarjeta incluye Ver y Descargar. Ver abre PDF e imágenes compatibles en una pestaña nueva sin forzar descarga; Descargar conserva la descarga del archivo. Otros formatos requieren descargar el documento para abrirlo.
 El servicio usa la cuenta de Windows que lo inicia y necesita permiso de lectura sobre la carpeta compartida. Nunca escribe en ella. Recibe peticiones del mismo origen que la página, no habilita CORS y solo publica los archivos de la interfaz y documentos presentes en el índice autorizado. No sirve el repositorio ni los índices privados como carpetas web.
 
 El primer acceso indexa las subcarpetas del servidor, incluida Nación Seguros. Se omiten por completo las carpetas que contengan **Vehículos bajas**, en cualquier nivel, y no se siguen enlaces o junctions. Se omiten Thumbs.db, Desktop.ini y temporales de Office. La revisión se renueva al consultar si pasaron cinco minutos; el navegador reutiliza el resultado hasta un minuto. No se copian todos los documentos a esta computadora.
@@ -83,3 +85,4 @@ Requiere Python y openpyxl:
     python scripts/importar_excel.py "ruta/al/archivo.xlsm"
 Conservá el mismo formato de columnas. Cada importación genera data.js.
 Una nueva importación parte de los datos del nuevo Excel y deja de utilizar las ediciones de la importación anterior.
+
