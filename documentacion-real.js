@@ -16,19 +16,18 @@ async function getAutomaticDocuments(force=false) {
 }
 function automaticFileList(entries) {
   return entries.length?'<ul class="real-file-list">'+entries.map(entry=>
-    '<li><a href="'+esc(entry.url)+'" download>'+esc(entry.name)+'</a> <span class="mut">('+Math.ceil(entry.size/1024)+' KB)</span><small class="mut" style="display:block">'+esc(entry.path)+'</small></li>'
-  ).join('')+'</ul>':'<p class="mut">Sin archivos asociados por patente en el índice del servidor.</p>';
+    '<li><strong>'+esc(entry.type)+': </strong><a href="'+esc(entry.url)+'" download>'+esc(entry.name)+'</a> <span class="mut">('+Math.ceil(entry.size/1024)+' KB)</span><small class="mut" style="display:block">'+esc(entry.path)+'</small></li>'
+  ).join('')+'</ul>':'<p class="mut">Sin archivos de VTV/RTO, seguro o cédula asociados a esta patente en el índice del servidor.</p>';
 }
 function automaticCoverageNote(manifest) {
-  return '<p class="mut">Se muestran todas las versiones asociadas por patente. Revisá su contenido y vigencia antes de usarlas.</p>'+
+  return '<p class="mut">Solo VTV/RTO, seguro y cédula asociados a esta patente. Se conservan las versiones y el frente/dorso. Revisá su contenido y vigencia antes de usarlas.</p>'+
     (manifest.readErrors?'<p role="alert">La lectura fue parcial: '+manifest.readErrors+' archivo(s) o carpeta(s) no pudieron consultarse. Algunos documentos pueden faltar.</p>':'');
 }
 async function loadUnitDocuments(plate, target) {
   target.innerHTML='<p role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p>';
   try {
     const manifest=await getAutomaticDocuments();if(!target.isConnected)return;
-    target.innerHTML=automaticFileList(manifest.byPlate[plate]||[])+automaticCoverageNote(manifest)+
-      (manifest.insurance.length?'<details><summary>Seguros generales · revisar cobertura</summary><p class="mut">Pólizas sin patente única; no se asignan automáticamente a este vehículo.</p>'+automaticFileList(manifest.insurance)+'</details>':'');
+    target.innerHTML=automaticFileList(manifest.byPlate[plate]||[])+automaticCoverageNote(manifest);
   }catch(error){if(target.isConnected){target.innerHTML='<p role="alert">'+esc(error.message)+'</p><button class="btn">Reintentar</button>';target.querySelector('button').onclick=()=>loadUnitDocuments(plate,target);}}
 }
 function requestRealZip(selected, manifest) {
@@ -40,11 +39,10 @@ function requestRealZip(selected, manifest) {
 function realDocumentacion() {
   const known=new Set(units.map(u=>u.plate));for(const plate of S.selected)if(!known.has(plate))S.selected.delete(plate);
   $('#app').innerHTML='<p class="eyebrow">Documentación de flota</p><h2>Descarga de documentación</h2>'+
-    '<p class="mut">Seleccioná los móviles y descargá sus archivos reales en un ZIP con una carpeta por patente e interno.</p>'+
+    '<p class="mut">Seleccioná los móviles y descargá solo VTV/RTO, seguro y cédula en un ZIP con una carpeta por patente e interno. Incluye las versiones y el frente/dorso asociados a cada patente.</p>'+
     '<div class="card"><p id="realSummary" role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p><button class="btn" id="retryDocs" hidden>Reintentar conexión</button></div>'+
     fleetFilters(S.docs)+'<div class="card download-panel"><div class="row"><strong id="realSelected" aria-live="polite"></strong><span class="sp"></span><button class="btn" id="realSelect">Seleccionar resultados</button><button class="btn" id="realClear">Quitar selección</button><button class="btn p" id="realZip" disabled>Descargar documentación</button></div><p class="mut" id="selectionHint"></p><div class="selection-list" id="selectedList"></div></div>'+
-    '<p id="realResultCount" class="mut"></p><div class="tw"><table><thead><tr><th>Selección</th><th>Patente</th><th>Interno</th><th>Archivos</th><th>Documentos</th></tr></thead><tbody id="realBody"></tbody></table></div>'+
-    '<details class="card"><summary>Seguros generales · revisar cobertura</summary><p class="mut">Archivos sin patente única. Podés descargarlos por separado; no se atribuye cobertura automáticamente a cada móvil.</p><div id="sharedInsurance"></div></details>';
+    '<p id="realResultCount" class="mut"></p><div class="tw"><table><thead><tr><th>Selección</th><th>Patente</th><th>Interno</th><th>Archivos</th><th>Documentos</th></tr></thead><tbody id="realBody"></tbody></table></div>';
   const container=$('#realBody'),summary=$('#realSummary');let manifest=null;
   const draw=()=>{
     if(!container.isConnected)return;
@@ -64,8 +62,8 @@ function realDocumentacion() {
     summary.textContent='Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.';$('#retryDocs').hidden=true;
     try {
       manifest=await getAutomaticDocuments(force);if(!container.isConnected)return;
-      summary.textContent=manifest.matchedUnits+' patentes con archivos · '+manifest.insurance.length+' seguros generales · '+manifest.unmatched+' archivos sin asociación única · '+manifest.excludedFolders+' carpeta(s) de bajas excluida(s).'+(manifest.readErrors?' Lectura parcial: '+manifest.readErrors+' errores.':'');
-      $('#sharedInsurance').innerHTML=automaticFileList(manifest.insurance);draw();
+      summary.textContent=manifest.matchedUnits+' patentes con archivos · Solo VTV/RTO, seguro y cédula · '+manifest.unmatched+' archivos de esos tipos sin asociación única · '+manifest.excludedFolders+' carpeta(s) de bajas excluida(s).'+(manifest.readErrors?' Lectura parcial: '+manifest.readErrors+' errores.':'');
+      draw();
     }catch(error){if(container.isConnected){manifest=null;summary.textContent=error.message;$('#retryDocs').hidden=false;draw();}}
   };
   $('#retryDocs').onclick=()=>connect(true);
