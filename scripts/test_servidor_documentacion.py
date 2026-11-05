@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -26,6 +27,14 @@ class ServiceTests(unittest.TestCase):
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(self.binary)
+            os.utime(target, (1700000000, 1700000000))
+        for relative, modified in [('AG369SA-890/VTV.pdf', 1700001000),
+                                   ('AG369SA-890/RTO2025.pdf', 1700002000),
+                                   ('AG369SA-890/Cédula frente.jpeg', 1700003000),
+                                   ('AG369SA-890/Cedula dorso.jpeg', 1700004000),
+                                   ('AG369SA-890/Nación SEGUROS 2026.pdf', 1700005000),
+                                   ('1 NACION SEGUROS PÓLIZAS/Seguro AG369SA.pdf', 1700006000)]:
+            os.utime(self.root / relative, (modified, modified))
         self.documents = Documents(self.root, self.fleet, 0)
         self.app = IntranetApp(APP_ROOT, self.documents)
 
@@ -51,7 +60,7 @@ class ServiceTests(unittest.TestCase):
         response = self.request('/api/documents')
         data = json.loads(response['body'])
         self.assertEqual(response['status'], '200 OK')
-        self.assertEqual(data['matchedFiles'], 6)
+        self.assertEqual(data['matchedFiles'], 3)
         self.assertEqual(data['excludedFolders'], 2)
         self.assertEqual(len(data['insurance']), 0)
         self.assertEqual(data['unmatched'], 3)
@@ -64,7 +73,7 @@ class ServiceTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(response['body'])) as archive:
             self.assertIsNone(archive.testzip())
             names = archive.namelist()
-            self.assertEqual(len(names), 7)
+            self.assertEqual(len(names), 4)
             self.assertFalse(any('BAJA' in n or 'general' in n or 'Acta' in n or 'Titulo' in n or 'Factura' in n for n in names))
             for name in names:
                 if name.endswith(('.pdf', '.jpeg')):
@@ -80,13 +89,18 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.request('/api/zip', 'plate=DESCONOCIDA')['status'], '400 Bad Request')
 
     def test_refresh_picks_up_new_files_and_removal(self):
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 6)
-        (self.root / 'AG369SA-890/VTV nuevo.pdf').write_bytes(b'new')
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 7)
-        (self.root / 'AG369SA-890/VTV.pdf').unlink()
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 6)
+        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 3)
+        target = self.root / 'AG369SA-890/VTV nuevo.pdf'
+        target.write_bytes(b'new')
+        os.utime(target, (1700010000, 1700010000))
+        selected = self.documents.get()['manifest']['byPlate']['AG369SA']
+        self.assertEqual(len(selected), 3)
+        self.assertEqual(selected[0]['name'], 'VTV nuevo.pdf')
+        target.unlink()
+        selected = self.documents.get()['manifest']['byPlate']['AG369SA']
+        self.assertEqual(selected[0]['name'], 'RTO2025.pdf')
 
-    def test_filter_uses_filename_and_keeps_both_cedula_sides(self):
+    def test_filter_uses_filename_and_selects_latest_modification_per_type(self):
         self.assertEqual(document_type('CÉDULA AG369SA.jpeg'), 'Cédula')
         self.assertEqual(document_type('VTV2026.pdf'), 'VTV/RTO')
         self.assertEqual(document_type('Nación Seguros 2026.pdf'), 'Seguro')
@@ -94,11 +108,23 @@ class ServiceTests(unittest.TestCase):
         self.assertIsNone(document_type('VTV/Factura.pdf'))
         manifest = self.documents.get()['manifest']
         names = [e['name'] for e in manifest['byPlate']['AG369SA']]
-        self.assertIn('Cédula frente.jpeg', names)
+        self.assertNotIn('Cédula frente.jpeg', names)
         self.assertIn('Cedula dorso.jpeg', names)
+        self.assertIn('RTO2025.pdf', names)
+        self.assertIn('Seguro AG369SA.pdf', names)
+        self.assertNotIn('Nación SEGUROS 2026.pdf', names)
         import hashlib
         identifier = hashlib.sha256('AG369SA-890/Acta entrega.pdf'.encode()).hexdigest()
         self.assertEqual(self.request('/api/files/' + identifier)['status'], '404 Not Found')
+        identifier = hashlib.sha256('AG369SA-890/Cédula frente.jpeg'.encode()).hexdigest()
+        self.assertEqual(self.request('/api/files/' + identifier)['status'], '404 Not Found')
+
+    def test_equal_modification_is_deterministic(self):
+        target = self.root / 'AG369SA-890/A VTV.pdf'
+        target.write_bytes(self.binary)
+        os.utime(target, (1700002000, 1700002000))
+        self.assertEqual(self.documents.get()['manifest']['byPlate']['AG369SA'][0]['name'], 'A VTV.pdf')
+        self.assertEqual(self.documents.get()['manifest']['byPlate']['AG369SA'][0]['name'], 'A VTV.pdf')
 
     def test_unavailable_share_is_an_error_and_not_zero_files(self):
         self.documents.root = self.root / 'not-available'

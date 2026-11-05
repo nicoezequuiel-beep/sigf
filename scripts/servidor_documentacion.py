@@ -47,6 +47,16 @@ def safe_name(text):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', str(text)).rstrip('. ') or 'Sin dato'
 
 
+def latest_documents(entries):
+    """Un archivo por tipo: mayor modificación; empates por ruta alfabética."""
+    latest = {}
+    for entry in sorted(entries, key=lambda e: (e['path'].casefold(), e['path'])):
+        current = latest.get(entry['type'])
+        if current is None or entry['modified'] > current['modified']:
+            latest[entry['type']] = entry
+    return [latest[kind] for kind in ('VTV/RTO', 'Seguro', 'Cédula') if kind in latest]
+
+
 def load_fleet(root):
     source = (root / 'data.js').read_text(encoding='utf-8-sig')
     return json.loads(source[source.index('{'):].rstrip().removesuffix(';'))['units']
@@ -122,10 +132,12 @@ class Documents:
                     if directory == self.root:
                         raise
                     errors.append('carpeta')
-            for entries in by_plate.values():
-                entries.sort(key=lambda e: (['VTV/RTO', 'Seguro', 'Cédula'].index(e['type']), e['path'].casefold()))
+            by_plate = {plate: latest_documents(entries) for plate, entries in by_plate.items()}
+            # Descargas individuales y ZIP acceden al mismo conjunto seleccionado.
+            files = {e['id']: e['path'] for entries in by_plate.values() for e in entries}
             insurance.sort(key=lambda e: e['path'].casefold())
             manifest = dict(byPlate=by_plate, insurance=insurance, unmatched=unmatched, filteredFiles=filtered_out,
+                            selection='latest-modified-per-type',
                             excludedFolders=skipped, readErrors=len(errors), scannedAt=time.strftime('%Y-%m-%dT%H:%M:%S%z'),
                             refreshSeconds=self.refresh_seconds, matchedUnits=len(by_plate),
                             matchedFiles=sum(map(len, by_plate.values())))
@@ -222,7 +234,9 @@ class IntranetApp:
                                     output.write(chunk)
                         zip_file.writestr('LEER - alcance de la descarga.txt',
                             'SIGF - Documentación real\r\nSolo VTV/RTO, seguro y cédula, según el nombre de archivo y asociados a la patente.\r\n'
-                            'Se excluyó Vehículos bajas. Se incluyen todas las versiones y frente/dorso; no se verificó vigencia.\r\n'
+                            'Un archivo por tipo y patente: el de mayor fecha de modificación. En empates se elige la primera ruta alfabética.\r\n'
+                            'Para cédula también se selecciona un solo archivo, aunque frente y dorso estén separados.\r\n'
+                            'Se excluyó Vehículos bajas. La fecha de modificación no verifica vigencia.\r\n'
                             'Los seguros sin patente única quedan excluidos.\r\n'
                             'Móviles seleccionados sin archivos: ' + (', '.join(missing) or 'ninguno') + '\r\n'
                             'Errores de lectura del último índice: ' + str(snapshot['manifest']['readErrors']))
