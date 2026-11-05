@@ -15,12 +15,16 @@ async function getAutomaticDocuments(force=false) {
   try{return await automaticDocs.pending;}finally{automaticDocs.pending=null;}
 }
 function automaticFileList(entries) {
-  return entries.length?'<ul class="real-file-list">'+entries.map(entry=>
-    '<li><strong>'+esc(entry.type)+': </strong><a href="'+esc(entry.url)+'" download>'+esc(entry.name)+'</a> <span class="mut">('+Math.ceil(entry.size/1024)+' KB)</span><small class="mut" style="display:block">'+esc(entry.path)+'</small></li>'
-  ).join('')+'</ul>':'<p class="mut">Sin archivos de VTV/RTO, seguro o cédula asociados a esta patente en el índice del servidor.</p>';
+  const types=[['VTV/RTO','VTV'],['Seguro','Seguro'],['Cédula','Cédula']];
+  return '<div class="document-tiles">'+types.map(([type,label])=>{
+    const entry=entries.find(e=>e.type===type);
+    const icon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></svg>';
+    return '<article class="document-tile '+(entry?'':'document-missing')+'" data-document-type="'+esc(type)+'"><div class="document-tile-top"><span class="document-icon">'+icon+'</span><span class="pill '+(entry?'ok':'neutral')+'">'+(entry?'Disponible':'Sin archivo')+'</span></div><h4>'+label+'</h4>'+
+      (entry?'<p class="document-file-name">'+esc(entry.name)+'</p><p class="document-modified">Modificado: '+esc(new Date(entry.modified*1000).toLocaleString('es-AR',{timeZone:'America/Buenos_Aires'}))+'</p><a class="btn p" href="'+esc(entry.url)+'" download aria-label="Descargar '+label+'">Descargar '+label+'</a>':'<p class="document-file-name mut">No se encontró un archivo asociado a esta patente.</p><button class="btn" disabled>Sin archivo</button>')+'</article>';
+  }).join('')+'</div>';
 }
 function automaticCoverageNote(manifest) {
-  return '<p class="mut">Solo VTV/RTO, seguro y cédula asociados a esta patente. Se conservan las versiones y el frente/dorso. Revisá su contenido y vigencia antes de usarlas.</p>'+
+  return '<p class="mut">Un archivo por tipo: el de modificación más reciente asociado a esta patente. La fecha de modificación no indica vigencia.</p>'+
     (manifest.readErrors?'<p role="alert">La lectura fue parcial: '+manifest.readErrors+' archivo(s) o carpeta(s) no pudieron consultarse. Algunos documentos pueden faltar.</p>':'');
 }
 async function loadUnitDocuments(plate, target) {
@@ -39,7 +43,7 @@ function requestRealZip(selected, manifest) {
 function realDocumentacion() {
   const known=new Set(units.map(u=>u.plate));for(const plate of S.selected)if(!known.has(plate))S.selected.delete(plate);
   $('#app').innerHTML='<p class="eyebrow">Documentación de flota</p><h2>Descarga de documentación</h2>'+
-    '<p class="mut">Seleccioná los móviles y descargá solo VTV/RTO, seguro y cédula en un ZIP con una carpeta por patente e interno. Incluye las versiones y el frente/dorso asociados a cada patente.</p>'+
+    '<p class="mut">Seleccioná los móviles y descargá VTV/RTO, seguro y cédula en un ZIP con una carpeta por patente e interno. Incluye un archivo por tipo: el de modificación más reciente.</p>'+
     '<div class="card"><p id="realSummary" role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p><button class="btn" id="retryDocs" hidden>Reintentar conexión</button></div>'+
     fleetFilters(S.docs)+'<div class="card download-panel"><div class="row"><strong id="realSelected" aria-live="polite"></strong><span class="sp"></span><button class="btn" id="realSelect">Seleccionar resultados</button><button class="btn" id="realClear">Quitar selección</button><button class="btn p" id="realZip" disabled>Descargar documentación</button></div><p class="mut" id="selectionHint"></p><div class="selection-list" id="selectedList"></div></div>'+
     '<p id="realResultCount" class="mut"></p><div class="tw"><table><thead><tr><th>Selección</th><th>Patente</th><th>Interno</th><th>Archivos</th><th>Documentos</th></tr></thead><tbody id="realBody"></tbody></table></div>';
@@ -72,4 +76,5 @@ function realDocumentacion() {
   $('#realZip').onclick=()=>{if(manifest)requestRealZip(units.filter(u=>S.selected.has(u.plate)),manifest);};
   bindFilters(S.docs,draw);draw();connect();
 }
+
 
