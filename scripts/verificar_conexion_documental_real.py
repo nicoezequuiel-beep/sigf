@@ -17,10 +17,16 @@ assert manifest['readErrors'] == 0, 'La lectura del servidor fue parcial'
 entries = manifest['byPlate'].get('AG369SA', [])
 assert entries, 'AG369SA debe tener documentación real'
 assert all(e.get('type') in ('VTV/RTO', 'Seguro', 'Cédula') for e in entries), 'Tipo documental fuera del filtro'
+assert len(entries) <= 3 and len({e['type'] for e in entries}) == len(entries), 'Debe haber como máximo un archivo por tipo'
+assert manifest.get('selection') == 'latest-modified-per-type'
 assert not manifest['insurance'], 'No deben publicarse seguros sin patente'
 entry = next(e for e in entries if e['name'].lower().endswith(('.jpeg', '.jpg', '.pdf')))
 with opener.open(base + entry['url'], timeout=120) as response:
+    assert response.headers['Content-Disposition'].startswith('attachment;')
     actual_hash = hashlib.sha256(response.read()).hexdigest()
+with opener.open(base + entry['url'] + '?view=1', timeout=120) as response:
+    assert response.headers['Content-Disposition'].startswith('inline;')
+    assert hashlib.sha256(response.read()).hexdigest() == actual_hash
 source = Path(config['documentsRoot']) / entry['path']
 with source.open('rb') as original:
     assert hashlib.file_digest(original, 'sha256').hexdigest() == actual_hash, 'La descarga individual difiere del original'

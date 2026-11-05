@@ -18,6 +18,11 @@ const root=path.resolve(__dirname,'..'),python='C:/Users/ndesbat/.cache/codex-ru
     await page.goto('http://127.0.0.1:18765/');await page.locator('#q').fill('890');await page.locator('#q').press('Enter');
     await page.locator('#unitDocumentFiles a[download]').first().waitFor();assert.equal(await page.locator('#unitDocumentFiles .document-tile').count(),3);assert.equal(await page.locator('#unitDocumentFiles a[download]').count(),3);
     assert.deepEqual(await page.locator('#unitDocumentFiles h4').allTextContents(),['VTV','Seguro','Cédula']);
+    assert.equal(await page.locator('#unitDocumentFiles a[target="_blank"]').count(),3);
+    const previewLink=page.locator('#unitDocumentFiles [data-document-type="Cédula"] a[target="_blank"]');
+    const previewResponse=await page.request.get(new URL(await previewLink.getAttribute('href'),page.url()).href);
+    assert.equal(previewResponse.status(),200);assert.match(previewResponse.headers()['content-disposition'],/^inline;/);assert.equal(previewResponse.headers()['content-type'],'image/jpeg');assert.deepEqual(await previewResponse.body(),binary);
+    const popupWaiting=page.waitForEvent('popup');await previewLink.click();const popup=await popupWaiting;await popup.waitForLoadState();assert.match(popup.url(),/\?view=1$/);await popup.close();
     assert.match(await page.locator('[data-document-type="VTV/RTO"] .document-file-name').innerText(),/RTO2025/);
     assert.match(await page.locator('[data-document-type="Cédula"] .document-file-name').innerText(),/dorso/);
     assert.doesNotMatch(await page.locator('#unitDocumentFiles').innerText(),/Acta entrega|Titulo|Seguro general/);

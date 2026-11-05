@@ -22,6 +22,9 @@ import zipfile
 APP_ROOT = Path(__file__).resolve().parent.parent
 PLATE = re.compile(r"(?<![A-Z0-9])(?:[A-Z]{2}\d{3}[A-Z]{2}|[A-Z]{3}\d{3}|[A-Z]\d{3}[A-Z]{3})(?![A-Z0-9])")
 ASSETS = {'index.html', 'app.js', 'style.css', 'data.js', 'documentacion.js', 'documentacion-real.js', 'logo-ihsa.png'}
+PREVIEW_TYPES = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                 '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+                 '.bmp': 'image/bmp', '.avif': 'image/avif'}
 
 
 def folded(text):
@@ -165,9 +168,9 @@ class IntranetApp:
                        ('Referrer-Policy', 'same-origin'), *extra])
         return [body]
 
-    def stream(self, start, file, size, name, content_type, head=False):
+    def stream(self, start, file, size, name, content_type, head=False, inline=False):
         start('200 OK', [('Content-Type', content_type), ('Content-Length', str(size)),
-                         ('Content-Disposition', "attachment; filename*=UTF-8''" + quote(name)),
+                         ('Content-Disposition', ('inline' if inline else 'attachment') + "; filename*=UTF-8''" + quote(name)),
                          ('Cache-Control', 'no-store'), ('X-Content-Type-Options', 'nosniff'),
                          ('Referrer-Policy', 'same-origin')])
         if head:
@@ -200,9 +203,14 @@ class IntranetApp:
                 relative = snapshot['files'].get(path.removeprefix('/api/files/'))
                 if not relative:
                     return fail('404 Not Found', 'Documento no encontrado.')
+                inline = parse_qs(env.get('QUERY_STRING', '')).get('view') == ['1']
+                preview_type = PREVIEW_TYPES.get(Path(relative).suffix.lower())
+                if inline and not preview_type:
+                    return fail('415 Unsupported Media Type', 'Este formato requiere descargar el archivo para abrirlo.')
                 file = self.documents.safe_file(relative).open('rb')
                 return self.stream(start, file, os.fstat(file.fileno()).st_size, Path(relative).name,
-                                   mimetypes.guess_type(relative)[0] or 'application/octet-stream', method == 'HEAD')
+                                   preview_type or mimetypes.guess_type(relative)[0] or 'application/octet-stream',
+                                   method == 'HEAD', inline=inline)
             if path == '/api/zip':
                 selected = list(dict.fromkeys(parse_qs(env.get('QUERY_STRING', '')).get('plate', [])))
                 if not selected or any(p not in self.documents.fleet for p in selected):

@@ -68,6 +68,7 @@ class ServiceTests(unittest.TestCase):
         self.assertNotIn(str(self.root), response['body'].decode())
         file = self.request(data['byPlate']['AG369SA'][0]['url'])
         self.assertEqual(file['body'], self.binary)
+        self.assertTrue(file['headers']['Content-Disposition'].startswith('attachment;'))
         response = self.request('/api/zip', urlencode([('plate', 'AG369SA'), ('plate', 'AI387BW')]))
         self.assertEqual(response['status'], '200 OK')
         with zipfile.ZipFile(io.BytesIO(response['body'])) as archive:
@@ -125,6 +126,20 @@ class ServiceTests(unittest.TestCase):
         os.utime(target, (1700002000, 1700002000))
         self.assertEqual(self.documents.get()['manifest']['byPlate']['AG369SA'][0]['name'], 'A VTV.pdf')
         self.assertEqual(self.documents.get()['manifest']['byPlate']['AG369SA'][0]['name'], 'A VTV.pdf')
+
+    def test_pdf_and_image_can_be_viewed_without_attachment(self):
+        entries = self.documents.get()['manifest']['byPlate']['AG369SA']
+        for entry in entries:
+            response = self.request(entry['url'], 'view=1')
+            self.assertEqual(response['status'], '200 OK')
+            self.assertTrue(response['headers']['Content-Disposition'].startswith('inline;'))
+            self.assertEqual(response['body'], self.binary)
+            self.assertIn(response['headers']['Content-Type'], ('application/pdf', 'image/jpeg'))
+        target = self.root / 'AG369SA-890/VTV.html'
+        target.write_text('<script>alert(1)</script>')
+        os.utime(target, (1800000000, 1800000000))
+        entry = self.documents.get()['manifest']['byPlate']['AG369SA'][0]
+        self.assertEqual(self.request(entry['url'], 'view=1')['status'], '415 Unsupported Media Type')
 
     def test_unavailable_share_is_an_error_and_not_zero_files(self):
         self.documents.root = self.root / 'not-available'
