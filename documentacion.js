@@ -5,7 +5,7 @@ function createZip(entries) {
   const crc32=bytes=>{let c=0xffffffff;for(const b of bytes)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;};
   let offset=0;
   for(const entry of entries) {
-    const name=encoder.encode(entry.name),data=encoder.encode(entry.text),crc=crc32(data);
+    const name=encoder.encode(entry.name),data=entry.data||encoder.encode(entry.text),crc=crc32(data);
     if(name.length>65535||offset+data.length+name.length+30>0xffffffff)throw Error('El ZIP supera el tamaño admitido.');
     const header=new Uint8Array(30),h=new DataView(header.buffer);
     h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);
@@ -29,13 +29,14 @@ function demoDocuments(selected) {
   })));
 }
 function documentacion() {
+  if(realDocs.connected)return realDocumentacion();
   const f=S.docs;
   // Las selecciones sobreviven a filtros y navegación, sin modificar los datos guardados.
   const known=new Set(units.map(u=>u.plate));
   for(const plate of S.selected)if(!known.has(plate))S.selected.delete(plate);
   $('#app').innerHTML='<p class="eyebrow">Documentación de flota</p><h2>Descarga de documentación</h2>'+
     '<p class="mut">Seleccioná uno o varios móviles. Recibirás un único ZIP con una carpeta por patente e interno.</p>'+
-    '<div class="card demo-notice"><strong>Modo demo · archivos de ejemplo</strong><p>Incluye VTV/RTO, seguro y cédula como archivos de texto identificados como DEMO. La documentación real se incorporará al conectar el servidor de IHSA.</p></div>'+
+    '<div class="card demo-notice"><strong>Modo demo · archivos de ejemplo</strong><p>Incluye VTV/RTO, seguro y cédula como archivos de texto identificados como DEMO.</p><button class="btn p" id="openRealDocs">Probar con carpeta real</button></div>'+
     fleetFilters(f)+'<div class="card download-panel"><div class="row"><strong id="selectedCount" aria-live="polite"></strong><span class="sp"></span>'+
     '<button class="btn" id="selectResults">Seleccionar resultados</button><button class="btn" id="clearSelected">Quitar selección</button><button class="btn p" id="downloadZip">Descargar ZIP demo</button></div>'+
     '<p class="mut" id="selectionHint"></p><div class="selection-list" id="selectedList" aria-label="Móviles seleccionados"></div></div>'+
@@ -54,6 +55,7 @@ function documentacion() {
     $('#docsBody').querySelectorAll('[data-plate]').forEach(input=>input.onchange=()=>{input.checked?S.selected.add(input.dataset.plate):S.selected.delete(input.dataset.plate);draw();});
   };
   bindFilters(f,draw);
+  $('#openRealDocs').onclick=realDocumentacion;
   $('#selectResults').onclick=()=>{filtered(f).forEach(u=>S.selected.add(u.plate));draw();};
   $('#selectVisible').onchange=e=>{filtered(f).forEach(u=>e.target.checked?S.selected.add(u.plate):S.selected.delete(u.plate));draw();};
   $('#clearSelected').onclick=()=>{S.selected.clear();draw();};

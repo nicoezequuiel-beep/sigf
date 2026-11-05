@@ -154,3 +154,5 @@ main{max-width:1200px;margin:auto;padding:30px}
 .docs-table tbody tr{cursor:default}
 #nav button{overflow-wrap:anywhere}
 @media(max-width:600px){.download-panel .row{align-items:stretch}.download-panel .btn{width:100%}.download-panel .sp{display:none}}
+.real-file-list {padding-left:22px;max-height:50vh;overflow:auto;}
+.real-file-list li {margin:10px 0;overflow-wrap:anywhere;}

@@ -130,11 +130,12 @@ function ficha() {
     (canEdit()?'<button class="btn" id="ed">Editar unidad</button>':"")+'</div>'+
     '<div class="card grid">'+field("Base / emplazamiento",u.base)+field("Ubicación técnica",u.ubicacion)+field("Clase de vehículo",u.tipo)+field("Año",u.anio)+field("Área",u.area)+field("Centro de coste",u.ceco)+field("Local",u.local)+field("Observaciones",u.obs)+'</div>'+
     '<h3 style="margin:24px 0 12px">VTV</h3><div class="card"><div class="row"><strong>Vencimiento: '+fmt(u.vtv)+'</strong>'+badge(u)+'</div><p class="mut">Fecha registrada en el Excel. El certificado todavía no está vinculado.</p></div>'+
-    '<h3 style="margin:24px 0 12px">Documentación</h3><div class="card"><p>La conexión con las carpetas del servidor interno está pendiente.</p><p class="mut">Aquí se mostrarán la cédula, seguros, certificados, fotos y demás archivos del móvil.</p></div>'+
+    '<h3 style="margin:24px 0 12px">Documentación</h3><div class="card"><p>Consultá los archivos reales eligiendo la carpeta compartida del servidor.</p><button class="btn" id="unitDocuments">Consultar archivos del móvil</button><p class="mut">Prueba local por patente. La conexión automática al servidor sigue pendiente.</p></div>'+
     '<h3 style="margin:24px 0 12px">Origen de los datos</h3><p class="mut">'+esc(SOURCE.source)+' · '+esc(SOURCE.sheet)+(u.sourceRow?' · Fila '+u.sourceRow:' · Alta local')+'</p>'+
     '<h3 style="margin:24px 0 4px">Historial de cambios locales</h3>'+
     (u.hist.length?'<ul class="h">'+u.hist.map(h=>'<li>'+esc(h)+'</li>').join("")+'</ul>':'<p class="mut">Sin ediciones locales.</p>');
   $("#bk").onclick=()=>go("unidades");if($("#ed"))$("#ed").onclick=()=>form(u);
+  $('#unitDocuments').onclick=()=>{Object.assign(S.docs,{q:u.plate,base:'',area:''});go('documentacion');if(!realDocs.connected)realDocumentacion();};
 }
 function closeModal() {$("#modal").innerHTML="";document.removeEventListener("keydown",modalKey);}
 function modalKey(e){if(e.key==="Escape")closeModal();}
