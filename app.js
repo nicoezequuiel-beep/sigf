@@ -62,7 +62,7 @@ function search() {
     '<div class="chips"><span>Probá con:</span>'+units.slice(0,3).map(u=>'<button class="chip" data-p="'+esc(u.plate)+'">'+esc(u.plate)+'</button>').join("")+
     '<button class="chip" data-p="870">Móvil 870</button></div>'+
     '<p class="mut">'+units.length+' móviles cargados del Excel</p>'+
-    '<div class="card source-note"><strong>Datos reales de flota</strong><p>Estado operativo, ubicación y vencimiento de VTV. La documentación del servidor todavía no está conectada.</p></div></section>';
+    '<div class="card source-note"><strong>Datos reales de flota</strong><p>Estado operativo, ubicación y vencimiento de VTV. Consultá los documentos de cada móvil desde su ficha en la red de IHSA.</p></div></section>';
   const input=$("#q"),suggestions=$("#sug");
   input.oninput=()=>{
     const results=matches(input.value);
@@ -129,13 +129,13 @@ function ficha() {
     '<span class="pill '+(u.estado==="OPER"?"ok":"neutral")+'">'+esc(statusLabel(u.estado))+'</span><span class="sp"></span>'+
     (canEdit()?'<button class="btn" id="ed">Editar unidad</button>':"")+'</div>'+
     '<div class="card grid">'+field("Base / emplazamiento",u.base)+field("Ubicación técnica",u.ubicacion)+field("Clase de vehículo",u.tipo)+field("Año",u.anio)+field("Área",u.area)+field("Centro de coste",u.ceco)+field("Local",u.local)+field("Observaciones",u.obs)+'</div>'+
-    '<h3 style="margin:24px 0 12px">VTV</h3><div class="card"><div class="row"><strong>Vencimiento: '+fmt(u.vtv)+'</strong>'+badge(u)+'</div><p class="mut">Fecha registrada en el Excel. El certificado todavía no está vinculado.</p></div>'+
-    '<h3 style="margin:24px 0 12px">Documentación</h3><div class="card"><p>Consultá los archivos reales eligiendo la carpeta compartida del servidor.</p><button class="btn" id="unitDocuments">Consultar archivos del móvil</button><p class="mut">Prueba local por patente. La conexión automática al servidor sigue pendiente.</p></div>'+
+    '<h3 style="margin:24px 0 12px">VTV</h3><div class="card"><div class="row"><strong>Vencimiento: '+fmt(u.vtv)+'</strong>'+badge(u)+'</div><p class="mut">Fecha registrada en el Excel. La vigencia del certificado debe verificarse en el documento.</p></div>'+
+    '<h3 style="margin:24px 0 12px">Documentación</h3><div class="card" id="unitDocumentFiles"></div>'+
     '<h3 style="margin:24px 0 12px">Origen de los datos</h3><p class="mut">'+esc(SOURCE.source)+' · '+esc(SOURCE.sheet)+(u.sourceRow?' · Fila '+u.sourceRow:' · Alta local')+'</p>'+
     '<h3 style="margin:24px 0 4px">Historial de cambios locales</h3>'+
     (u.hist.length?'<ul class="h">'+u.hist.map(h=>'<li>'+esc(h)+'</li>').join("")+'</ul>':'<p class="mut">Sin ediciones locales.</p>');
   $("#bk").onclick=()=>go("unidades");if($("#ed"))$("#ed").onclick=()=>form(u);
-  $('#unitDocuments').onclick=()=>{Object.assign(S.docs,{q:u.plate,base:'',area:''});go('documentacion');if(!realDocs.connected)realDocumentacion();};
+  loadUnitDocuments(u.plate,$('#unitDocumentFiles'));
 }
 function closeModal() {$("#modal").innerHTML="";document.removeEventListener("keydown",modalKey);}
 function modalKey(e){if(e.key==="Escape")closeModal();}

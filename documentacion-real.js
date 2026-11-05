@@ -1,76 +1,77 @@
-/* Prueba local: los archivos permanecen en la carpeta elegida por el usuario. */
-const realDocs = {connected:false, byPlate:new Map(), insurance:[], unmatched:[], excluded:0, urls:[]};
-const docText = value => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-function indexRealDocuments(files, fleet) {
-  const known=new Map(fleet.map(u=>[norm(u.plate),u.plate]));
-  const result={byPlate:new Map(),insurance:[],unmatched:[],excluded:0};
-  for(const file of files) {
-    const path=file.webkitRelativePath||file.name, parts=path.split('/'), folded=parts.map(docText);
-    if(folded.some(p=>/VEHICULOS\s+BAJAS/.test(p))){result.excluded++;continue;}
-    if(/^(THUMBS\.DB|DESKTOP\.INI|~\$)/i.test(file.name))continue;
-    const isInsurance=folded.some(p=>/NACION\s+SEGUROS/.test(p));
-    // Tokens completos: no vincular por interno ni por coincidencias parciales.
-    const tokens=[...new Set(folded.flatMap(p=>p.match(/(?<![A-Z0-9])(?:[A-Z]{2}\d{3}[A-Z]{2}|[A-Z]{3}\d{3}|[A-Z]\d{3}[A-Z]{3})(?![A-Z0-9])/g)||[]))];
-    const plates=tokens.length===1&&known.has(tokens[0])?[known.get(tokens[0])]:[];
-    const entry={file,path,insurance:isInsurance};
-    if(plates.length===1){const plate=plates[0];if(!result.byPlate.has(plate))result.byPlate.set(plate,[]);result.byPlate.get(plate).push(entry);}
-    else if(isInsurance)result.insurance.push(entry);
-    else result.unmatched.push(entry);
-  }
-  return result;
+/* Documentación automática, servida desde la misma dirección interna que SIGF. */
+const automaticDocs={manifest:null,pending:null,loadedAt:0};
+async function getAutomaticDocuments(force=false) {
+  if(location.protocol==='file:')throw Error('Abrí SIGF desde su dirección interna para consultar los documentos.');
+  if(automaticDocs.pending)return automaticDocs.pending;
+  if(!force&&automaticDocs.manifest&&Date.now()-automaticDocs.loadedAt<60000)return automaticDocs.manifest;
+  automaticDocs.pending=(async()=>{
+    let response;
+    try {response=await fetch('/api/documents',{cache:'no-store',signal:AbortSignal.timeout(600000)});}
+    catch (_) {throw Error('No se pudo conectar con la documentación. Revisá la conexión a IHSA y que la computadora que aloja SIGF esté encendida.');}
+    const body=await response.json().catch(()=>null);
+    if(!response.ok||!body||!body.byPlate)throw Error(body?.error||'No se pudo conectar con la documentación. Verificá que estés usando la dirección interna de SIGF y que el servicio esté encendido.');
+    automaticDocs.manifest=body;automaticDocs.loadedAt=Date.now();return body;
+  })();
+  try{return await automaticDocs.pending;}finally{automaticDocs.pending=null;}
 }
-function clearDocUrls(){realDocs.urls.forEach(URL.revokeObjectURL);realDocs.urls=[];}
-function realFileList(entries) {
-  return entries.length?'<ul class="real-file-list">'+entries.map(entry=>{
-    const url=URL.createObjectURL(entry.file);realDocs.urls.push(url);
-    return '<li><a href="'+url+'" download="'+esc(entry.file.name)+'">'+esc(entry.path)+'</a> <span class="mut">('+Math.ceil(entry.file.size/1024)+' KB)</span></li>';
-  }).join('')+'</ul>':'<p class="mut">Sin archivos asociados por patente.</p>';
+function automaticFileList(entries) {
+  return entries.length?'<ul class="real-file-list">'+entries.map(entry=>
+    '<li><a href="'+esc(entry.url)+'" download>'+esc(entry.name)+'</a> <span class="mut">('+Math.ceil(entry.size/1024)+' KB)</span><small class="mut" style="display:block">'+esc(entry.path)+'</small></li>'
+  ).join('')+'</ul>':'<p class="mut">Sin archivos asociados por patente en el índice del servidor.</p>';
+}
+function automaticCoverageNote(manifest) {
+  return '<p class="mut">Se muestran todas las versiones asociadas por patente. Revisá su contenido y vigencia antes de usarlas.</p>'+
+    (manifest.readErrors?'<p role="alert">La lectura fue parcial: '+manifest.readErrors+' archivo(s) o carpeta(s) no pudieron consultarse. Algunos documentos pueden faltar.</p>':'');
+}
+async function loadUnitDocuments(plate, target) {
+  target.innerHTML='<p role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p>';
+  try {
+    const manifest=await getAutomaticDocuments();if(!target.isConnected)return;
+    target.innerHTML=automaticFileList(manifest.byPlate[plate]||[])+automaticCoverageNote(manifest)+
+      (manifest.insurance.length?'<details><summary>Seguros generales · revisar cobertura</summary><p class="mut">Pólizas sin patente única; no se asignan automáticamente a este vehículo.</p>'+automaticFileList(manifest.insurance)+'</details>':'');
+  }catch(error){if(target.isConnected){target.innerHTML='<p role="alert">'+esc(error.message)+'</p><button class="btn">Reintentar</button>';target.querySelector('button').onclick=()=>loadUnitDocuments(plate,target);}}
+}
+function requestRealZip(selected, manifest) {
+  const missing=selected.filter(u=>!(manifest.byPlate[u.plate]||[]).length);
+  const url='/api/zip?'+selected.map(u=>'plate='+encodeURIComponent(u.plate)).join('&');
+  const link=document.createElement('a');link.href=url;link.download='SIGF-documentacion-real.zip';document.body.append(link);link.click();link.remove();
+  toast('Preparando descarga de documentación.'+(missing.length?' '+missing.length+' móvil(es) sin archivos; se detallan en el ZIP.':''));
 }
 function realDocumentacion() {
-  clearDocUrls();
-  $('#app').innerHTML='<p class="eyebrow">Prueba local</p><h2>Documentación real</h2>'+
-    '<div class="card"><label class="btn">Elegir carpeta DOCUMENTOS MÓVILES<input id="realFolder" type="file" webkitdirectory multiple hidden></label> <button class="btn" id="backDemo">Volver a demo</button>'+
-    '<p class="mut">Pegá la ruta del servidor en el selector de carpetas. Los archivos se consultan en esta sesión; al recargar hay que elegir la carpeta otra vez. No se suben a Internet ni se modifican los originales.</p>'+
-    '<p class="mut">Se excluye Vehículos bajas. Se incluyen todas las versiones encontradas, sin deducir vigencia por nombre o fecha de modificación.</p><p id="realSummary" role="status"></p></div>'+
-    fleetFilters(S.docs)+'<div class="card row"><button class="btn" id="realSelect">Seleccionar resultados</button><button class="btn" id="realClear">Quitar selección</button><button class="btn p" id="realZip">Descargar ZIP real</button><span id="realSelected"></span></div>'+
+  const known=new Set(units.map(u=>u.plate));for(const plate of S.selected)if(!known.has(plate))S.selected.delete(plate);
+  $('#app').innerHTML='<p class="eyebrow">Documentación de flota</p><h2>Descarga de documentación</h2>'+
+    '<p class="mut">Seleccioná los móviles y descargá sus archivos reales en un ZIP con una carpeta por patente e interno.</p>'+
+    '<div class="card"><p id="realSummary" role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p><button class="btn" id="retryDocs" hidden>Reintentar conexión</button></div>'+
+    fleetFilters(S.docs)+'<div class="card download-panel"><div class="row"><strong id="realSelected" aria-live="polite"></strong><span class="sp"></span><button class="btn" id="realSelect">Seleccionar resultados</button><button class="btn" id="realClear">Quitar selección</button><button class="btn p" id="realZip" disabled>Descargar documentación</button></div><p class="mut" id="selectionHint"></p><div class="selection-list" id="selectedList"></div></div>'+
     '<p id="realResultCount" class="mut"></p><div class="tw"><table><thead><tr><th>Selección</th><th>Patente</th><th>Interno</th><th>Archivos</th><th>Documentos</th></tr></thead><tbody id="realBody"></tbody></table></div>'+
-    '<details class="card"><summary>Seguros sin patente única · revisar asociación</summary><p class="mut">Estos archivos pueden corresponder a varios vehículos. Podés descargarlos por separado; no se agregan automáticamente a cada móvil ni acreditan cobertura.</p><div id="sharedInsurance"></div></details>'+
-    '<details class="card"><summary>Otros archivos sin asociación única</summary><div id="unmatchedDocs"></div></details>';
+    '<details class="card"><summary>Seguros generales · revisar cobertura</summary><p class="mut">Archivos sin patente única. Podés descargarlos por separado; no se atribuye cobertura automáticamente a cada móvil.</p><div id="sharedInsurance"></div></details>';
+  const container=$('#realBody'),summary=$('#realSummary');let manifest=null;
   const draw=()=>{
-    const result=filtered(S.docs),selected=units.filter(u=>S.selected.has(u.plate));
-    $('#realSummary').textContent=realDocs.connected?realDocs.byPlate.size+' patentes con archivos · '+realDocs.insurance.length+' seguros por revisar · '+realDocs.unmatched.length+' otros sin asociación · '+realDocs.excluded+' archivos de bajas excluidos.':'Elegí la carpeta principal para comenzar.';
+    if(!container.isConnected)return;
+    const result=filtered(S.docs),selected=units.filter(u=>S.selected.has(u.plate)),visibleSelected=result.filter(u=>S.selected.has(u.plate)).length;
     $('#realSelected').textContent=selected.length+(selected.length===1?' móvil seleccionado':' móviles seleccionados');
+    $('#selectionHint').textContent='La selección se conserva al cambiar los filtros.'+(selected.length>visibleSelected?' Hay '+(selected.length-visibleSelected)+' seleccionado(s) fuera del filtro actual.':'');
     $('#realResultCount').textContent=result.length+' de '+units.length+' móviles';
-    $('#realZip').disabled=!realDocs.connected||!selected.some(u=>(realDocs.byPlate.get(u.plate)||[]).length);
-    $('#realBody').innerHTML=result.map(u=>{const entries=realDocs.byPlate.get(u.plate)||[];return '<tr><td><input type="checkbox" data-real-plate="'+esc(u.plate)+'" aria-label="Seleccionar '+esc(u.plate)+'" '+(S.selected.has(u.plate)?'checked':'')+'></td><td class="pl">'+esc(u.plate)+'</td><td>'+esc(u.mov)+'</td><td>'+entries.length+'</td><td><button class="btn" data-real-show="'+esc(u.plate)+'">Ver archivos</button></td></tr>';}).join('');
-    $('#realBody').querySelectorAll('[data-real-plate]').forEach(input=>input.onchange=()=>{input.checked?S.selected.add(input.dataset.realPlate):S.selected.delete(input.dataset.realPlate);draw();});
-    $('#realBody').querySelectorAll('[data-real-show]').forEach(button=>button.onclick=()=>{
-      modal('<h3 id="dialogTitle">Documentos · '+esc(button.dataset.realShow)+'</h3><p class="mut">Todos los archivos asociados por patente. Revisá su contenido y vigencia antes de usarlos.</p>'+realFileList(realDocs.byPlate.get(button.dataset.realShow)||[])+'<button class="btn" data-x>Cerrar</button>');
-    });
+    $('#realZip').disabled=!manifest||!selected.some(u=>(manifest.byPlate[u.plate]||[]).length);
+    $('#realClear').disabled=!selected.length;$('#realSelect').disabled=!result.length;
+    $('#selectedList').innerHTML=selected.map(u=>'<button class="chip" data-remove="'+esc(u.plate)+'">'+esc(u.plate)+' · '+esc(u.mov)+' ×</button>').join('');
+    $('#selectedList').querySelectorAll('[data-remove]').forEach(button=>button.onclick=()=>{S.selected.delete(button.dataset.remove);draw();});
+    container.innerHTML=result.map(u=>{const entries=manifest?.byPlate[u.plate]||[];return '<tr><td><input type="checkbox" data-real-plate="'+esc(u.plate)+'" aria-label="Seleccionar '+esc(u.plate)+'" '+(S.selected.has(u.plate)?'checked':'')+'></td><td class="pl">'+esc(u.plate)+'</td><td>'+esc(u.mov)+'</td><td>'+(manifest?entries.length:'Pendiente de conexión')+'</td><td><button class="btn" data-real-show="'+esc(u.plate)+'" '+(!manifest?'disabled':'')+'>Ver archivos</button></td></tr>';}).join('')||'<tr><td colspan="5">Ningún móvil coincide con los filtros.</td></tr>';
+    container.querySelectorAll('[data-real-plate]').forEach(input=>input.onchange=()=>{input.checked?S.selected.add(input.dataset.realPlate):S.selected.delete(input.dataset.realPlate);draw();});
+    container.querySelectorAll('[data-real-show]').forEach(button=>button.onclick=()=>modal('<h3 id="dialogTitle">Documentos · '+esc(button.dataset.realShow)+'</h3>'+automaticFileList(manifest.byPlate[button.dataset.realShow]||[])+automaticCoverageNote(manifest)+'<button class="btn" data-x>Cerrar</button>'));
   };
-  $('#backDemo').onclick=()=>{clearDocUrls();realDocs.connected=false;documentacion();};
-  $('#realFolder').onchange=event=>{
-    if(!event.target.files.length)return;
-    clearDocUrls();Object.assign(realDocs,indexRealDocuments(event.target.files,units),{connected:true});
-    $('#sharedInsurance').innerHTML=realFileList(realDocs.insurance);
-    $('#unmatchedDocs').innerHTML=realFileList(realDocs.unmatched);draw();
+  const connect=async(force=false)=>{
+    summary.textContent='Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.';$('#retryDocs').hidden=true;
+    try {
+      manifest=await getAutomaticDocuments(force);if(!container.isConnected)return;
+      summary.textContent=manifest.matchedUnits+' patentes con archivos · '+manifest.insurance.length+' seguros generales · '+manifest.unmatched+' archivos sin asociación única · '+manifest.excludedFolders+' carpeta(s) de bajas excluida(s).'+(manifest.readErrors?' Lectura parcial: '+manifest.readErrors+' errores.':'');
+      $('#sharedInsurance').innerHTML=automaticFileList(manifest.insurance);draw();
+    }catch(error){if(container.isConnected){manifest=null;summary.textContent=error.message;$('#retryDocs').hidden=false;draw();}}
   };
-  $('#sharedInsurance').innerHTML=realFileList(realDocs.insurance);
-  $('#unmatchedDocs').innerHTML=realFileList(realDocs.unmatched);
+  $('#retryDocs').onclick=()=>connect(true);
   $('#realSelect').onclick=()=>{filtered(S.docs).forEach(u=>S.selected.add(u.plate));draw();};
   $('#realClear').onclick=()=>{S.selected.clear();draw();};
-  $('#realZip').onclick=async()=>{
-    const button=$('#realZip');button.disabled=true;
-    try {
-      const selected=units.filter(u=>S.selected.has(u.plate));
-      const total=selected.flatMap(u=>realDocs.byPlate.get(u.plate)||[]).reduce((sum,e)=>sum+e.file.size,0);
-      if(total>250*1024*1024)throw Error('La selección supera 250 MB. Descargá menos móviles por vez.');
-      const entries=[],missing=[];
-      for(const u of selected){const docs=realDocs.byPlate.get(u.plate)||[];if(!docs.length)missing.push(u.plate);for(const entry of docs)entries.push({name:u.plate+' - '+String(u.mov).replace(/[^a-z0-9-]/gi,'_')+'/'+entry.path.replace(/[<>:"\\|?*\u0000-\u001f]/g,'_'),data:new Uint8Array(await entry.file.arrayBuffer())});}
-      entries.push({name:'LEER - alcance de la descarga.txt',text:'Archivos asociados por patente. No se verificó vigencia ni contenido. Se excluyó Vehículos bajas. Los seguros sin patente única se descargan por separado.\r\nMóviles seleccionados sin archivos: '+(missing.join(', ')||'ninguno')});
-      const url=URL.createObjectURL(createZip(entries)),a=document.createElement('a');a.href=url;a.download='SIGF-documentacion-REAL-'+today()+'.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
-      toast('ZIP real generado.'+(missing.length?' '+missing.length+' móviles sin archivos; revisá el informe del ZIP.':''));
-    }catch(error){toast('No se pudo generar el ZIP. '+error.message);}finally{if($('#realZip')===button)draw();}
-  };
-  bindFilters(S.docs,draw);draw();
+  $('#realZip').onclick=()=>{if(manifest)requestRealZip(units.filter(u=>S.selected.has(u.plate)),manifest);};
+  bindFilters(S.docs,draw);draw();connect();
 }
+
