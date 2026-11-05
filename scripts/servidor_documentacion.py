@@ -32,6 +32,17 @@ def excluded(part):
     return bool(re.search(r'VEHICULOS\s+BAJAS', folded(part)))
 
 
+def document_type(filename):
+    """Clasificar solo por nombre de archivo, nunca por el nombre de la carpeta."""
+    name = folded(Path(filename).stem)
+    for pattern, label in [(r'(?<![A-Z])(?:RTO|VTV)(?![A-Z])', 'VTV/RTO'),
+                           (r'(?<![A-Z])SEGUROS?(?![A-Z])', 'Seguro'),
+                           (r'(?<![A-Z])CEDULAS?(?![A-Z])', 'Cédula')]:
+        if re.search(pattern, name):
+            return label
+    return None
+
+
 def safe_name(text):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', str(text)).rstrip('. ') or 'Sin dato'
 
@@ -71,7 +82,7 @@ class Documents:
             if not self.root.is_dir():
                 raise OSError('Recurso compartido no disponible')
             by_plate, files, insurance, errors = {}, {}, [], []
-            skipped, unmatched = 0, 0
+            skipped, unmatched, filtered_out = 0, 0, 0
             queue = [self.root]
             while queue:
                 directory = queue.pop()
@@ -90,20 +101,20 @@ class Documents:
                                 if not item.is_file(follow_symlinks=False) or item.name.upper() in ('THUMBS.DB', 'DESKTOP.INI') or item.name.startswith('~$'):
                                     continue
                                 relative = Path(item.path).relative_to(self.root).as_posix()
+                                kind = document_type(item.name)
+                                if not kind:
+                                    filtered_out += 1
+                                    continue
                                 tokens = set(PLATE.findall(folded(relative)))
                                 plate = next(iter(tokens)) if len(tokens) == 1 else None
-                                is_insurance = any(re.search(r'NACION\s+SEGUROS', folded(p)) for p in Path(relative).parts)
-                                if plate not in self.fleet and not is_insurance:
+                                if plate not in self.fleet:
                                     unmatched += 1
                                     continue
                                 stat = item.stat(follow_symlinks=False)
                                 identifier = hashlib.sha256(relative.encode('utf-8')).hexdigest()
-                                entry = dict(id=identifier, name=item.name, path=relative, size=stat.st_size,
+                                entry = dict(id=identifier, name=item.name, path=relative, size=stat.st_size, type=kind,
                                              modified=stat.st_mtime, url='/api/files/' + identifier)
-                                if plate in self.fleet:
-                                    by_plate.setdefault(plate, []).append(entry)
-                                else:
-                                    insurance.append(entry)
+                                by_plate.setdefault(plate, []).append(entry)
                                 files[identifier] = relative
                             except OSError:
                                 errors.append('archivo')
@@ -112,9 +123,9 @@ class Documents:
                         raise
                     errors.append('carpeta')
             for entries in by_plate.values():
-                entries.sort(key=lambda e: e['path'].casefold())
+                entries.sort(key=lambda e: (['VTV/RTO', 'Seguro', 'Cédula'].index(e['type']), e['path'].casefold()))
             insurance.sort(key=lambda e: e['path'].casefold())
-            manifest = dict(byPlate=by_plate, insurance=insurance, unmatched=unmatched,
+            manifest = dict(byPlate=by_plate, insurance=insurance, unmatched=unmatched, filteredFiles=filtered_out,
                             excludedFolders=skipped, readErrors=len(errors), scannedAt=time.strftime('%Y-%m-%dT%H:%M:%S%z'),
                             refreshSeconds=self.refresh_seconds, matchedUnits=len(by_plate),
                             matchedFiles=sum(map(len, by_plate.values())))
@@ -210,8 +221,9 @@ class IntranetApp:
                                         raise ValueError('La selección supera el tamaño admitido.')
                                     output.write(chunk)
                         zip_file.writestr('LEER - alcance de la descarga.txt',
-                            'SIGF - Documentación real\r\nSe excluyó Vehículos bajas. Se incluyen todas las versiones asociadas por patente; no se verificó vigencia.\r\n'
-                            'Las pólizas sin patente única están disponibles por separado en SIGF.\r\n'
+                            'SIGF - Documentación real\r\nSolo VTV/RTO, seguro y cédula, según el nombre de archivo y asociados a la patente.\r\n'
+                            'Se excluyó Vehículos bajas. Se incluyen todas las versiones y frente/dorso; no se verificó vigencia.\r\n'
+                            'Los seguros sin patente única quedan excluidos.\r\n'
                             'Móviles seleccionados sin archivos: ' + (', '.join(missing) or 'ninguno') + '\r\n'
                             'Errores de lectura del último índice: ' + str(snapshot['manifest']['readErrors']))
                     size = archive.tell()

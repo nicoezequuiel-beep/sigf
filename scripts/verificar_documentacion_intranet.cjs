@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..'),python='C:/Users/ndesbat/.cache/codex-ru
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'sigf-intranet-')),docs=path.join(tmp,'docs'),binary=Buffer.from([0,255,37,80,68,70,13,10]);
   let server,browser;
   try {
-    for(const name of ['AG369SA-890/VTV.pdf','AG369SA-890/Cédula.jpeg','3 VEHICULOS BAJAS/AG369SA-890/NO.pdf','1 NACION SEGUROS PÓLIZAS/Pólizas Flota.pdf']){const target=path.join(docs,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,binary);}
+    for(const name of ['AG369SA-890/VTV.pdf','AG369SA-890/RTO2025.pdf','AG369SA-890/Cédula frente.jpeg','AG369SA-890/Cedula dorso.jpeg','AG369SA-890/Nacion Seguros.pdf','1 NACION SEGUROS PÓLIZAS/Seguro AG369SA.pdf','3 VEHICULOS BAJAS/AG369SA-890/VTV BAJA.pdf','1 NACION SEGUROS PÓLIZAS/Seguro general.pdf','AG369SA-890/Acta entrega.pdf','AG369SA-890/Titulo.pdf']){const target=path.join(docs,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,binary);}
     const config=path.join(tmp,'config.json');fs.writeFileSync(config,JSON.stringify({documentsRoot:docs,host:'127.0.0.1',port:18765,refreshSeconds:1}));
     server=cp.spawn(python,[path.join(root,'scripts/servidor_documentacion.py'),'--config',config],{cwd:root,env:{...process.env,PYTHONPATH:path.join(root,'.intranet-deps')},windowsHide:true,stdio:'pipe'});
     let logs='';server.stderr.on('data',c=>logs+=c);
@@ -15,7 +15,8 @@ const root=path.resolve(__dirname,'..'),python='C:/Users/ndesbat/.cache/codex-ru
     browser=await chromium.launch({channel:'msedge',headless:true});
     const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto('http://127.0.0.1:18765/');await page.locator('#q').fill('890');await page.locator('#q').press('Enter');
-    await page.locator('#unitDocumentFiles a[download]').first().waitFor();assert.equal(await page.locator('#unitDocumentFiles > ul a').count(),2);
+    await page.locator('#unitDocumentFiles a[download]').first().waitFor();assert.equal(await page.locator('#unitDocumentFiles > ul a').count(),6);
+    assert.doesNotMatch(await page.locator('#unitDocumentFiles').innerText(),/Acta entrega|Titulo|Seguro general/);
     assert.equal(await page.locator('input[type=file]').count(),0);
     const fileWaiting=page.waitForEvent('download');await page.locator('#unitDocumentFiles > ul a').first().click();const file=await fileWaiting;
     assert.deepEqual(fs.readFileSync(await file.path()),binary);
@@ -25,7 +26,7 @@ const root=path.resolve(__dirname,'..'),python='C:/Users/ndesbat/.cache/codex-ru
     const zipWaiting=page.waitForEvent('download');await page.locator('#realZip').click();const zip=await zipWaiting;
     const zipPath=path.join(root,'verificacion','documentacion-real-intranet.zip');await zip.saveAs(zipPath);
     const names=JSON.parse(cp.execFileSync(python,['-c','import json,zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
-    assert.equal(names.length,3);assert(!names.some(n=>n.includes('NO.pdf')||n.includes('Flota.pdf')));
+    assert.equal(names.length,7);assert(!names.some(n=>/VTV BAJA|Seguro general|Acta entrega|Titulo/.test(n)));
     await page.locator('#fq').fill('AI387BW');assert.match(await page.locator('#realSelected').innerText(),/1 móvil seleccionado/);assert.match(await page.locator('#selectionHint').innerText(),/1 seleccionado/);
     await page.locator('[data-v="buscar"]').click();await page.locator('[data-v="documentacion"]').click();assert.match(await page.locator('#realSelected').innerText(),/1 móvil seleccionado/);
     for(const width of [320,390]){await page.setViewportSize({width,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}

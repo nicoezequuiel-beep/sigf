@@ -6,7 +6,7 @@ import unittest
 from urllib.parse import urlencode
 import zipfile
 
-from servidor_documentacion import APP_ROOT, Documents, IntranetApp, load_fleet
+from servidor_documentacion import APP_ROOT, Documents, IntranetApp, load_fleet, document_type
 
 
 class ServiceTests(unittest.TestCase):
@@ -15,11 +15,14 @@ class ServiceTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.fleet = [dict(plate='AG369SA', mov='890'), dict(plate='AI387BW', mov='55')]
         self.binary = bytes([0, 255, 37, 80, 68, 70, 13, 10])
-        for relative in ['AG369SA-890/VTV.pdf', 'AG369SA-890/Cédula.jpeg',
+        for relative in ['AG369SA-890/VTV.pdf', 'AG369SA-890/Cédula frente.jpeg',
+                         'AG369SA-890/Cedula dorso.jpeg', 'AG369SA-890/Nación SEGUROS 2026.pdf',
+                         'AG369SA-890/RTO2025.pdf', '1 NACION SEGUROS PÓLIZAS/Seguro AG369SA.pdf',
                          '3 VEHÍCULOS BAJAS/AG369SA-890/BAJA.pdf',
                          'AG369SA-890/sub/VEHICULOS BAJAS/NO.pdf',
-                         '1 NACION SEGUROS PÓLIZAS/Pólizas Flota.pdf',
-                         'AG369SA-890/AI387BW.pdf', 'XAG369SA9/falso.pdf', 'AG369SA-890/Thumbs.db']:
+                         '1 NACION SEGUROS PÓLIZAS/Seguro general.pdf',
+                         'AG369SA-890/VTV AI387BW.pdf', 'XAG369SA9/VTV.pdf', 'AG369SA-890/Thumbs.db',
+                         'AG369SA-890/Acta entrega.pdf', 'AG369SA-890/Titulo.pdf', 'VTV/AG369SA/Factura.pdf']:
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(self.binary)
@@ -48,10 +51,11 @@ class ServiceTests(unittest.TestCase):
         response = self.request('/api/documents')
         data = json.loads(response['body'])
         self.assertEqual(response['status'], '200 OK')
-        self.assertEqual(data['matchedFiles'], 2)
+        self.assertEqual(data['matchedFiles'], 6)
         self.assertEqual(data['excludedFolders'], 2)
-        self.assertEqual(len(data['insurance']), 1)
-        self.assertEqual(data['unmatched'], 2)
+        self.assertEqual(len(data['insurance']), 0)
+        self.assertEqual(data['unmatched'], 3)
+        self.assertEqual({e['type'] for e in data['byPlate']['AG369SA']}, {'VTV/RTO', 'Seguro', 'Cédula'})
         self.assertNotIn(str(self.root), response['body'].decode())
         file = self.request(data['byPlate']['AG369SA'][0]['url'])
         self.assertEqual(file['body'], self.binary)
@@ -60,8 +64,8 @@ class ServiceTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(response['body'])) as archive:
             self.assertIsNone(archive.testzip())
             names = archive.namelist()
-            self.assertEqual(len(names), 3)
-            self.assertFalse(any('BAJA' in n or 'Flota' in n for n in names))
+            self.assertEqual(len(names), 7)
+            self.assertFalse(any('BAJA' in n or 'general' in n or 'Acta' in n or 'Titulo' in n or 'Factura' in n for n in names))
             for name in names:
                 if name.endswith(('.pdf', '.jpeg')):
                     self.assertEqual(archive.read(name), self.binary)
@@ -76,11 +80,25 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.request('/api/zip', 'plate=DESCONOCIDA')['status'], '400 Bad Request')
 
     def test_refresh_picks_up_new_files_and_removal(self):
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 2)
-        (self.root / 'AG369SA-890/nuevo.pdf').write_bytes(b'new')
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 3)
+        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 6)
+        (self.root / 'AG369SA-890/VTV nuevo.pdf').write_bytes(b'new')
+        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 7)
         (self.root / 'AG369SA-890/VTV.pdf').unlink()
-        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 2)
+        self.assertEqual(self.documents.get()['manifest']['matchedFiles'], 6)
+
+    def test_filter_uses_filename_and_keeps_both_cedula_sides(self):
+        self.assertEqual(document_type('CÉDULA AG369SA.jpeg'), 'Cédula')
+        self.assertEqual(document_type('VTV2026.pdf'), 'VTV/RTO')
+        self.assertEqual(document_type('Nación Seguros 2026.pdf'), 'Seguro')
+        self.assertIsNone(document_type('PUERTO - Factura.pdf'))
+        self.assertIsNone(document_type('VTV/Factura.pdf'))
+        manifest = self.documents.get()['manifest']
+        names = [e['name'] for e in manifest['byPlate']['AG369SA']]
+        self.assertIn('Cédula frente.jpeg', names)
+        self.assertIn('Cedula dorso.jpeg', names)
+        import hashlib
+        identifier = hashlib.sha256('AG369SA-890/Acta entrega.pdf'.encode()).hexdigest()
+        self.assertEqual(self.request('/api/files/' + identifier)['status'], '404 Not Found')
 
     def test_unavailable_share_is_an_error_and_not_zero_files(self):
         self.documents.root = self.root / 'not-available'
