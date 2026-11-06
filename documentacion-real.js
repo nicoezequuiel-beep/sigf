@@ -1,7 +1,7 @@
 /* Documentación automática, servida desde la misma dirección interna que SIGF. */
 const automaticDocs={manifest:null,pending:null,loadedAt:0};
 async function getAutomaticDocuments(force=false) {
-  if(location.protocol==='file:')throw Error('Abrí SIGF desde su dirección interna para consultar los documentos.');
+  if(location.protocol==='file:')throw Error('Cerrá esta pestaña y abrí Iniciar SIGF.cmd para consultar los documentos.');
   if(automaticDocs.pending)return automaticDocs.pending;
   if(!force&&automaticDocs.manifest&&Date.now()-automaticDocs.loadedAt<60000)return automaticDocs.manifest;
   automaticDocs.pending=(async()=>{

@@ -4,7 +4,7 @@ Versión con 309 móviles reales importados de "Fechas VTV moviles.xlsm", hoja "
 Actualización del 30/10/2026, desde el archivo del servidor modificado el 29/10/2026: 31 móviles con cambios, sin altas ni bajas de registros. Cambiaron 19 vencimientos de VTV, 5 estados y 19 observaciones (un móvil puede tener varios cambios).
 
 ## Abrir
-Para documentación real, abrí Iniciar SIGF.cmd y usá la dirección interna del servicio en Edge o Chrome. Abrir index.html directamente solo permite consultar los datos del Excel.
+Para documentación real, abrí Iniciar SIGF.cmd y usá http://127.0.0.1:8765 en Edge o Chrome. Esta dirección funciona en esta computadora aunque cambies de red. Abrir index.html directamente solo permite consultar los datos del Excel.
 Para trasladarla a otra computadora, copiá la carpeta completa o descomprimí el ZIP completo antes de abrir index.html.
 
 ## Datos y búsqueda
@@ -30,14 +30,14 @@ El rol es un selector de prueba; todavía no hay autenticación ni cuentas corpo
 La ficha de cada móvil consulta automáticamente los archivos del servidor por patente. En **Descarga de documentación**, seleccioná móviles y usá **Descargar documentación** para recibir el ZIP real. No hay selector de carpetas ni archivos DEMO. La fecha de VTV del Excel sigue siendo independiente del contenido de los certificados.
 
 ### Usar esta computadora como servicio
-- Abrí **Iniciar SIGF.cmd**. Inicia el servicio en segundo plano y abre la dirección interna configurada.
-- La configuración privada está en `config-documentacion.local.json`. Incluye la carpeta UNC, la IP corporativa y el puerto 8765. No debe publicarse.
-- Todos deben abrir SIGF desde esa dirección interna, mientras esta PC esté encendida y conectada a IHSA. La publicación estática anterior en Internet no ejecuta este servicio.
+- Abrí **Iniciar SIGF.cmd**. Inicia el servicio en segundo plano y abre **http://127.0.0.1:8765**.
+- La dirección local funciona en esta computadora aunque cambies de red o de IP. Si falla el inicio, la ventana queda abierta mostrando el error.
+- La configuración privada está en `config-documentacion.local.json`. Incluye la carpeta UNC y el puerto 8765. No debe publicarse.
+- La documentación necesita conexión al servidor de IHSA y permiso de lectura. Fuera de una red con acceso al recurso, la interfaz abre pero los documentos no están disponibles; conectate a IHSA o a una VPN corporativa habilitada para ese recurso y reintentá.
+- El servicio escucha solo en esta computadora. Para compartir SIGF con otras computadoras, Sistemas debe configurar una dirección corporativa en `host` y `allowedHosts` y revisar el firewall. No abrir el servicio en redes públicas.
 - No se configura inicio automático con Windows. Después de reiniciar, ejecutá **Iniciar SIGF.cmd** otra vez.
-- El servicio escucha en la IP corporativa configurada, no en todas las interfaces. Si cambia la IP de la conexión IHSA, hay que actualizar `host` y `allowedHosts` en la configuración y reiniciar el servicio.
-- Para otras computadoras, Windows Firewall y la red corporativa deben permitir el puerto de SIGF sobre la interfaz corporativa. No abrir el puerto en el perfil público ni publicar mediante redirección de puertos.
-- En esta PC se verificó el servicio en `http://10.254.253.94:8765`. Windows denegó crear la regla de firewall sin permisos de administrador. Sistemas puede revisar y ejecutar `scripts/habilitar_acceso_ihsa.ps1` como administrador: permite solo clientes 10.x por Ethernet 3, perfil de dominio y puerto 8765. El acceso desde otra PC sigue sin verificarse.
-- Los datos editados siguen siendo locales a cada navegador. El selector de roles no autentica personas. El servicio habilita consulta a quienes puedan acceder a su dirección interna; no reproduce permisos individuales del recurso compartido.
+- Los datos editados siguen siendo locales a cada navegador. El selector de roles no autentica personas.
+- La configuración anterior usaba una IP corporativa fija. La configuración local actual la reemplaza y no requiere modificar el firewall.
 
 ### Funcionamiento de los documentos
 
@@ -50,21 +50,21 @@ La ficha, la descarga individual y el ZIP incluyen únicamente archivos cuyo nom
 
 Una falla al leer la raíz se informa como error de conexión. Las fallas parciales muestran una advertencia con su cantidad; un cero no acredita ausencia documental. Los archivos sin asociación única no se adjuntan automáticamente.
 
-Los ZIP se preparan temporalmente en esta PC y se transmiten al navegador; el archivo temporal se elimina al finalizar o interrumpir la transmisión. Se admite ZIP64 y un máximo de 10 GB por selección, con hasta dos preparaciones simultáneas. Se conservan las rutas para evitar colisiones entre versiones. El informe del ZIP identifica móviles seleccionados sin archivos y errores de lectura del índice. Se aplica el mismo filtro de tres tipos documentales que en la ficha.
+Los ZIP se preparan temporalmente en esta PC y se transmiten al navegador; el archivo temporal se elimina al finalizar o interrumpir la transmisión. Se admite ZIP64 y un máximo de 10 GB por selección, con hasta dos preparaciones simultáneas. Cada móvil tiene una sola carpeta `PATENTE - INTERNO`, con los documentos directamente adentro y sus nombres originales (solo se reemplazan caracteres no admitidos). No se incluyen las subcarpetas del servidor. El informe en la raíz del ZIP identifica móviles seleccionados sin archivos y errores de lectura del índice. Se aplica el mismo filtro de tres tipos documentales que en la ficha.
 
 ### Instalar en otra computadora
 Se necesita Python 3.11 o superior. Dentro de la carpeta SIGF:
 ```powershell
 python -m pip install --target .intranet-deps -r requirements-intranet.txt
 ```
-Crear la configuración privada, ajustando la IP corporativa de esa computadora:
+Crear la configuración privada para uso local, ajustando la carpeta de documentos:
 ```json
 {
   "documentsRoot": "\\\\SERVIDOR\\recurso\\DOCUMENTOS MÓVILES",
-  "host": "IP-CORPORATIVA-DEL-EQUIPO",
+  "host": "127.0.0.1",
   "port": 8765,
   "refreshSeconds": 300,
-  "allowedHosts": ["IP-CORPORATIVA-DEL-EQUIPO"]
+  "allowedHosts": ["127.0.0.1", "localhost"]
 }
 ```
 
@@ -85,4 +85,6 @@ Requiere Python y openpyxl:
     python scripts/importar_excel.py "ruta/al/archivo.xlsm"
 Conservá el mismo formato de columnas. Cada importación genera data.js.
 Una nueva importación parte de los datos del nuevo Excel y deja de utilizar las ediciones de la importación anterior.
+
+
 
