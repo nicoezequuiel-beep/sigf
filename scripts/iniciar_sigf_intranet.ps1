@@ -30,6 +30,7 @@ if ($sigfRunning -and $Reiniciar) {
     $sigfRunning = $false
 }
 if (-not $sigfRunning) {
+    New-Item -ItemType Directory -Path (Join-Path $sigfRoot 'outputs') -Force | Out-Null
     $env:PYTHONPATH = Join-Path $sigfRoot '.intranet-deps'
     $sigfArguments = @('"' + (Join-Path $PSScriptRoot 'servidor_documentacion.py') + '"', '--config', '"' + $sigfConfig + '"')
     $sigfNewProcess = Start-Process -FilePath $sigfPython -ArgumentList $sigfArguments -WorkingDirectory $sigfRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $sigfRoot 'outputs/servidor-sigf.log') -RedirectStandardError (Join-Path $sigfRoot 'outputs/servidor-sigf-error.log') -PassThru
