@@ -3,7 +3,9 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 from urllib.parse import urlencode
 import zipfile
 
@@ -78,8 +80,22 @@ class ServiceTests(unittest.TestCase):
             self.assertFalse(any('BAJA' in n or 'general' in n or 'Acta' in n or 'Titulo' in n or 'Factura' in n for n in names))
             for name in names:
                 if name.endswith(('.pdf', '.jpeg')):
+                    self.assertEqual(name.count('/'), 1)
+                    self.assertEqual(name.split('/')[0], 'AG369SA - 890')
                     self.assertEqual(archive.read(name), self.binary)
             self.assertIn('AI387BW', archive.read(names[-1]).decode())
+
+    def test_zip_groups_units_without_server_subfolders(self):
+        target = self.root / 'carpeta compartida/AI387BW-55/VTV.pdf'
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b'otra unidad')
+        response = self.request('/api/zip', urlencode([('plate', 'AG369SA'), ('plate', 'AI387BW')]))
+        with zipfile.ZipFile(io.BytesIO(response['body'])) as archive:
+            names = [n for n in archive.namelist() if '/' in n]
+            self.assertEqual(len(names), 4)
+            self.assertEqual({n.split('/')[0] for n in names}, {'AG369SA - 890', 'AI387BW - 55'})
+            self.assertTrue(all(n.count('/') == 1 for n in names))
+            self.assertEqual(archive.read('AI387BW - 55/VTV.pdf'), b'otra unidad')
 
     def test_files_cannot_escape_index_and_private_paths_are_not_served(self):
         for path in ['/api/files/../../data.js', '/config-documentacion.local.json', '/outputs/documentacion-inventario.local.json', '/.git/config', '/scripts/servidor_documentacion.py']:
@@ -153,6 +169,73 @@ class ServiceTests(unittest.TestCase):
 
     def test_real_fleet_loads(self):
         self.assertEqual(len(load_fleet(APP_ROOT)), 309)
+
+    def test_cached_list_and_download_do_not_wait_for_network_refresh(self):
+        snapshot = self.documents.get()
+        self.documents.background = True
+        entered, release = threading.Event(), threading.Event()
+        def slow_get():
+            entered.set()
+            release.wait(5)
+            return snapshot
+        with patch.object(self.documents, 'get', side_effect=slow_get):
+            try:
+                response = self.request('/api/documents')
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(response['status'], '200 OK')
+                manifest = json.loads(response['body'])
+                self.assertTrue(manifest['cached'])
+                self.assertTrue(manifest['refreshing'])
+                entry = manifest['byPlate']['AG369SA'][0]
+                self.assertEqual(self.request(entry['url'])['body'], self.binary)
+            finally:
+                release.set()
+                self.documents.worker.join(2)
+
+    def test_first_background_scan_returns_pending_instead_of_blocking(self):
+        self.documents.background = True
+        entered, release = threading.Event(), threading.Event()
+        def slow_get():
+            entered.set()
+            release.wait(5)
+        with patch.object(self.documents, 'get', side_effect=slow_get):
+            try:
+                response = self.request('/api/documents')
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(response['status'], '202 Accepted')
+                self.assertTrue(json.loads(response['body'])['pending'])
+            finally:
+                release.set()
+                self.documents.worker.join(2)
+
+    def test_cache_survives_restart_and_is_scoped_to_source_and_fleet(self):
+        cache = self.root / 'cache.json'
+        first = Documents(self.root, self.fleet, cache_path=cache)
+        first.get()
+        restarted = Documents(self.root, self.fleet, cache_path=cache)
+        self.assertEqual(restarted.snapshot['manifest']['matchedFiles'], 3)
+        self.assertEqual(restarted.snapshot['clock'], float('-inf'))
+        other = Documents(self.root / 'other', self.fleet, cache_path=cache)
+        self.assertIsNone(other.snapshot)
+        changed_fleet = Documents(self.root, self.fleet[:1], cache_path=cache)
+        self.assertIsNone(changed_fleet.snapshot)
+
+    def test_failed_refresh_labels_cached_list_and_keeps_it(self):
+        snapshot = self.documents.get()
+        self.documents.background = True
+        done = threading.Event()
+        def failed_get():
+            done.set()
+            raise OSError('share unavailable')
+        with patch.object(self.documents, 'get', side_effect=failed_get):
+            self.documents.start_refresh()
+            self.assertTrue(done.wait(1))
+            # Esperar la terminación del worker sin depender de tiempos de red.
+            self.documents.worker.join(2)
+            manifest = json.loads(self.request('/api/documents')['body'])
+            self.assertTrue(manifest['refreshError'])
+            self.assertTrue(manifest['cached'])
+            self.assertEqual(manifest['byPlate'], snapshot['manifest']['byPlate'])
 
 
 if __name__ == '__main__':

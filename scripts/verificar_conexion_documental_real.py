@@ -2,6 +2,7 @@
 import hashlib
 import io
 import json
+import time
 from pathlib import Path
 import urllib.request
 import zipfile
@@ -11,8 +12,15 @@ config = json.loads((ROOT / 'config-documentacion.local.json').read_text(encodin
 base = 'http://' + config['host'] + ':' + str(config['port'])
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 print('Consultando el índice automático del servidor IHSA...', flush=True)
-with opener.open(base + '/api/documents', timeout=600) as response:
-    manifest = json.load(response)
+deadline = time.monotonic() + 600
+while True:
+    with opener.open(base + '/api/documents', timeout=15) as response:
+        manifest = json.load(response)
+        if response.status != 202:
+            break
+    if time.monotonic() >= deadline:
+        raise TimeoutError('La primera lectura de IHSA no terminó en diez minutos')
+    time.sleep(2)
 assert manifest['readErrors'] == 0, 'La lectura del servidor fue parcial'
 entries = manifest['byPlate'].get('AG369SA', [])
 assert entries, 'AG369SA debe tener documentación real'
@@ -36,6 +44,7 @@ with opener.open(base + '/api/zip?plate=AG369SA', timeout=600) as response:
 with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
     assert archive.testzip() is None, 'CRC inválido'
     assert len(archive.namelist()) == len(entries) + 1
+    assert all(n.count('/') == 1 and n.startswith('AG369SA - 890/') for n in archive.namelist() if '/' in n), 'El ZIP no debe contener subcarpetas del servidor'
     assert not any('VEHICULOS BAJAS' in n.upper() for n in archive.namelist())
 report = dict(address=base, matchedUnits=manifest['matchedUnits'], matchedFiles=manifest['matchedFiles'],
               readErrors=manifest['readErrors'], excludedFolders=manifest['excludedFolders'],

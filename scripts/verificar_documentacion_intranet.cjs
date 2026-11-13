@@ -40,12 +40,24 @@ const root=path.resolve(__dirname,'..'),python='C:/Users/ndesbat/.cache/codex-ru
     const zipPath=path.join(root,'verificacion','documentacion-real-intranet.zip');await zip.saveAs(zipPath);
     const names=JSON.parse(cp.execFileSync(python,['-c','import json,zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
     assert.equal(names.length,4);assert(!names.some(n=>/VTV BAJA|Seguro general|Acta entrega|Titulo|frente|\/VTV.pdf|Nacion Seguros.pdf/.test(n)));
+    assert(names.filter(n=>n.includes('/')).every(n=>n.split('/').length===2&&n.startsWith('AG369SA - 890/')));
     await page.locator('#fq').fill('AI387BW');assert.match(await page.locator('#realSelected').innerText(),/1 móvil seleccionado/);assert.match(await page.locator('#selectionHint').innerText(),/1 seleccionado/);
     await page.locator('[data-v="buscar"]').click();await page.locator('[data-v="documentacion"]').click();assert.match(await page.locator('#realSelected').innerText(),/1 móvil seleccionado/);
     for(const width of [320,390]){await page.setViewportSize({width,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
     await page.screenshot({path:path.join(root,'verificacion','documentacion-real-intranet-movil.png'),fullPage:true});
     await page.reload();await page.locator('#q').fill('890');await page.locator('#q').press('Enter');await page.locator('#unitDocumentFiles a[download]').first().waitFor();assert.equal(await page.locator('input[type=file]').count(),0);
     await page.setViewportSize({width:1440,height:1000});await page.locator('[data-v="buscar"]').click();await page.locator('#q').fill('55');await page.locator('#q').press('Enter');await page.locator('#unitDocumentFiles .document-missing').first().waitFor();assert.equal(await page.locator('#unitDocumentFiles .document-missing').count(),3);assert.equal(await page.locator('#unitDocumentFiles a[download]').count(),0);
+    const cachedManifest=await (await page.request.get('http://127.0.0.1:18765/api/documents')).json();
+    let polls=0;
+    await page.route('**/api/documents',route=>{
+      polls++;
+      return route.fulfill({status:polls===1?202:200,contentType:'application/json',body:JSON.stringify(polls===1?{pending:true}:{...cachedManifest,cached:polls===2,refreshing:polls===2})});
+    });
+    await page.reload();await page.locator('[data-v="documentacion"]').click();
+    await page.locator('#realFreshness').filter({hasText:'mientras se actualiza'}).waitFor();
+    await page.locator('#realFreshness').filter({hasNotText:'mientras se actualiza'}).waitFor();
+    assert(polls>=3,'Debe volver a consultar hasta que termine la actualización');
+    await page.unroute('**/api/documents');
     await page.route('**/api/documents',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Servicio no disponible'})}));
     await page.reload();await page.locator('[data-v="documentacion"]').click();await page.locator('#retryDocs:not([hidden])').waitFor();assert.equal(await page.locator('#realZip').isDisabled(),true);assert.match(await page.locator('#realSummary').innerText(),/Servicio no disponible/);
     assert.deepEqual(errors,[]);console.log('OK: ficha automática, recarga sin carpeta, descarga individual y ZIP real, exclusión de bajas, filtros, móvil y fallo de servicio explícito.');

@@ -66,12 +66,67 @@ def load_fleet(root):
 
 
 class Documents:
-    def __init__(self, root, fleet, refresh_seconds=300):
+    def __init__(self, root, fleet, refresh_seconds=300, cache_path=None):
         self.root = Path(root).resolve()
         self.fleet = {u['plate']: u for u in fleet}
         self.refresh_seconds = refresh_seconds
         self.lock = threading.Lock()
         self.snapshot = None
+        self.cache_path = Path(cache_path) if cache_path else None
+        self.refresh_lock = threading.Lock()
+        self.refreshing = False
+        self.refresh_error = False
+        self.last_attempt = float('-inf')
+        self.background = False
+        if self.cache_path:
+            try:
+                cached = json.loads(self.cache_path.read_text(encoding='utf-8'))
+                if (cached['root'] == str(self.root) and cached['fleet'] == sorted(self.fleet)
+                        and cached['snapshot']['manifest']['selection'] == 'latest-modified-per-type'):
+                    self.snapshot = cached['snapshot']
+                    self.snapshot['clock'] = float('-inf')
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+
+    def start_refresh(self):
+        with self.refresh_lock:
+            if self.refreshing or (self.refresh_error and time.monotonic() - self.last_attempt < 30):
+                return
+            self.refreshing = True
+            self.last_attempt = time.monotonic()
+        def run():
+            try:
+                self.get()
+                self.refresh_error = False
+            except (OSError, ValueError):
+                self.refresh_error = True
+            finally:
+                with self.refresh_lock:
+                    self.refreshing = False
+        self.worker = threading.Thread(target=run, name='sigf-documents', daemon=True)
+        self.worker.start()
+
+    def enable_background(self):
+        self.background = True
+        self.start_refresh()
+
+    def available(self):
+        if not self.background:
+            return self.get()
+        snapshot = self.snapshot
+        if snapshot is None or time.monotonic() - snapshot['clock'] >= self.refresh_seconds:
+            self.start_refresh()
+        return snapshot
+
+    def manifest_response(self):
+        snapshot = self.available()
+        if snapshot is None:
+            if self.refresh_error:
+                return '503 Service Unavailable', {'error': 'No se pudo leer la documentación. Revisá la conexión a IHSA y reintentá.'}
+            return '202 Accepted', {'pending': True}
+        return '200 OK', {**snapshot['manifest'], 'refreshing': self.refreshing,
+                          'cached': time.monotonic() - snapshot['clock'] >= self.refresh_seconds,
+                          'refreshError': self.refresh_error}
 
     def safe_file(self, relative):
         candidate = self.root / relative
@@ -91,7 +146,7 @@ class Documents:
         with self.lock:
             if self.snapshot and time.monotonic() - self.snapshot['clock'] < self.refresh_seconds:
                 return self.snapshot
-            # No devolver un índice viejo como si la red estuviera disponible.
+            # Los errores se informan aunque se conserve la última lista para consulta.
             if not self.root.is_dir():
                 raise OSError('Recurso compartido no disponible')
             by_plate, files, insurance, errors = {}, {}, [], []
@@ -103,7 +158,11 @@ class Documents:
                     with os.scandir(directory) as entries:
                         for item in entries:
                             try:
-                                if item.is_symlink() or getattr(os.path, 'isjunction', lambda p: False)(item.path):
+                                # DirEntry reutiliza los atributos del listado de Windows;
+                                # os.path.isjunction consulta de nuevo la red por cada archivo.
+                                is_junction = getattr(item, 'is_junction', None)
+                                if item.is_symlink() or (is_junction() if is_junction else
+                                        getattr(os.path, 'isjunction', lambda p: False)(item.path)):
                                     continue
                                 if item.is_dir(follow_symlinks=False):
                                     if excluded(item.name):
@@ -145,6 +204,15 @@ class Documents:
                             refreshSeconds=self.refresh_seconds, matchedUnits=len(by_plate),
                             matchedFiles=sum(map(len, by_plate.values())))
             self.snapshot = dict(clock=time.monotonic(), manifest=manifest, files=files)
+            if self.cache_path:
+                try:
+                    self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = self.cache_path.with_name(self.cache_path.name + '.tmp')
+                    temporary.write_text(json.dumps(dict(root=str(self.root), fleet=sorted(self.fleet),
+                                                        snapshot=self.snapshot), ensure_ascii=False), encoding='utf-8')
+                    temporary.replace(self.cache_path)
+                except OSError:
+                    pass  # La caché en memoria sigue disponible si falla el disco local.
             return self.snapshot
 
 
@@ -196,10 +264,12 @@ class IntranetApp:
             if method not in ('GET', 'HEAD'):
                 return fail('405 Method Not Allowed', 'Método no admitido.')
             if path == '/api/documents':
-                manifest = self.documents.get()['manifest']
-                return self.response(start, '200 OK', manifest if method == 'GET' else b'')
+                status, manifest = self.documents.manifest_response()
+                return self.response(start, status, manifest if method == 'GET' else b'')
             if path.startswith('/api/files/'):
-                snapshot = self.documents.get()
+                snapshot = self.documents.available()
+                if snapshot is None:
+                    return fail('503 Service Unavailable', 'La lista de documentos se está preparando. Reintentá en unos segundos.')
                 relative = snapshot['files'].get(path.removeprefix('/api/files/'))
                 if not relative:
                     return fail('404 Not Found', 'Documento no encontrado.')
@@ -215,7 +285,9 @@ class IntranetApp:
                 selected = list(dict.fromkeys(parse_qs(env.get('QUERY_STRING', '')).get('plate', [])))
                 if not selected or any(p not in self.documents.fleet for p in selected):
                     return fail('400 Bad Request', 'Seleccioná patentes válidas de la flota.')
-                snapshot = self.documents.get()
+                snapshot = self.documents.available()
+                if snapshot is None:
+                    return fail('503 Service Unavailable', 'La lista de documentos se está preparando. Reintentá en unos segundos.')
                 entries = [(p, e) for p in selected for e in snapshot['manifest']['byPlate'].get(p, [])]
                 if not entries:
                     return fail('404 Not Found', 'No hay archivos asociados a los móviles seleccionados.')
@@ -232,8 +304,8 @@ class IntranetApp:
                             relative = snapshot['files'][entry['id']]
                             source = self.documents.safe_file(relative)
                             folder = safe_name(plate) + ' - ' + safe_name(self.documents.fleet[plate]['mov'])
-                            # Mantener subcarpetas para evitar colisiones y conservar versiones.
-                            name = folder + '/' + '/'.join(safe_name(p) for p in Path(relative).parts)
+                            # Un nivel por móvil; no trasladar la estructura del servidor al ZIP.
+                            name = folder + '/' + safe_name(Path(relative).name)
                             with source.open('rb') as input_file, zip_file.open(name, 'w', force_zip64=True) as output:
                                 while chunk := input_file.read(128 * 1024):
                                     actual_size += len(chunk)
@@ -275,7 +347,9 @@ def main():
     config = json.loads(Path(args.config).read_text(encoding='utf-8-sig'))
     root = Path(config['documentsRoot'])
     port, host = int(config.get('port', 8765)), config.get('host', '127.0.0.1')
-    documents = Documents(root, load_fleet(APP_ROOT), config.get('refreshSeconds', 300))
+    documents = Documents(root, load_fleet(APP_ROOT), config.get('refreshSeconds', 300),
+                          Path(args.config).resolve().parent / 'outputs' / 'documentacion-cache.local.json')
+    documents.enable_background()
     app = IntranetApp(APP_ROOT, documents, port, extra_hosts=config.get('allowedHosts', []))
     sys.path.insert(0, str(APP_ROOT / '.intranet-deps'))
     try:
@@ -283,7 +357,7 @@ def main():
     except ImportError:
         raise SystemExit('Falta Waitress. Ejecutá: python -m pip install -r requirements-intranet.txt')
     print('SIGF interno: http://' + host + ':' + str(port), flush=True)
-    print('La documentación se indexa automáticamente al consultar. No cerrar este servicio.', flush=True)
+    print('La documentación se actualiza en segundo plano. No cerrar este servicio.', flush=True)
     serve(app, host=host, port=port, threads=6, channel_timeout=600, max_request_body_size=8192,
           max_request_header_size=16384, expose_tracebacks=False)
 
