@@ -6,7 +6,15 @@ async function getAutomaticDocuments(force=false) {
   if(!force&&automaticDocs.manifest&&Date.now()-automaticDocs.loadedAt<60000)return automaticDocs.manifest;
   automaticDocs.pending=(async()=>{
     let response;
-    try {response=await fetch('/api/documents',{cache:'no-store',signal:AbortSignal.timeout(600000)});}
+    try {
+      const deadline=Date.now()+600000;
+      do {
+        response=await fetch('/api/documents',{cache:'no-store',signal:AbortSignal.timeout(15000)});
+        if(response.status!==202)break;
+        if(Date.now()>=deadline)throw Error('timeout');
+        await new Promise(resolve=>setTimeout(resolve,2000));
+      }while(true);
+    }
     catch (_) {throw Error('No se pudo conectar con la documentación. Revisá la conexión a IHSA y que la computadora que aloja SIGF esté encendida.');}
     const body=await response.json().catch(()=>null);
     if(!response.ok||!body||!body.byPlate)throw Error(body?.error||'No se pudo conectar con la documentación. Verificá que estés usando la dirección interna de SIGF y que el servicio esté encendido.');
@@ -26,13 +34,21 @@ function automaticFileList(entries) {
 }
 function automaticCoverageNote(manifest) {
   return '<p class="mut">Un archivo por tipo: el de modificación más reciente asociado a esta patente. La fecha de modificación no indica vigencia.</p>'+
+    automaticFreshnessNote(manifest)+
     (manifest.readErrors?'<p role="alert">La lectura fue parcial: '+manifest.readErrors+' archivo(s) o carpeta(s) no pudieron consultarse. Algunos documentos pueden faltar.</p>':'');
 }
-async function loadUnitDocuments(plate, target) {
-  target.innerHTML='<p role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p>';
+function automaticFreshnessNote(manifest) {
+  const date=manifest.scannedAt?new Date(manifest.scannedAt.replace(/([+-]\d{2})(\d{2})$/,'$1:$2')).toLocaleString('es-AR',{timeZone:'America/Buenos_Aires'}):'sin fecha';
+  return '<p class="mut" '+(manifest.refreshError?'role="alert"':'')+'>Última lectura: '+esc(date)+'. '+
+    (manifest.refreshError?'No se pudo actualizar desde IHSA. Se muestra la última lista guardada; la disponibilidad de los archivos depende de la conexión.':
+     manifest.cached||manifest.refreshing?'Se muestra la última lista guardada mientras se actualiza desde IHSA.':'')+'</p>';
+}
+async function loadUnitDocuments(plate, target, background=false) {
+  if(!background)target.innerHTML='<p role="status">Cargando documentación… La primera lectura desde IHSA puede demorar.</p>';
   try {
     const manifest=await getAutomaticDocuments();if(!target.isConnected)return;
     target.innerHTML=automaticFileList(manifest.byPlate[plate]||[])+automaticCoverageNote(manifest);
+    if(manifest.cached||manifest.refreshing)setTimeout(()=>{if(target.isConnected){automaticDocs.loadedAt=0;loadUnitDocuments(plate,target,true);}},5000);
   }catch(error){if(target.isConnected){target.innerHTML='<p role="alert">'+esc(error.message)+'</p><button class="btn">Reintentar</button>';target.querySelector('button').onclick=()=>loadUnitDocuments(plate,target);}}
 }
 function requestRealZip(selected, manifest) {
@@ -45,7 +61,7 @@ function realDocumentacion() {
   const known=new Set(units.map(u=>u.plate));for(const plate of S.selected)if(!known.has(plate))S.selected.delete(plate);
   $('#app').innerHTML='<p class="eyebrow">Documentación de flota</p><h2>Descarga de documentación</h2>'+
     '<p class="mut">Seleccioná los móviles y descargá VTV/RTO, seguro y cédula en un ZIP con una carpeta por patente e interno. Incluye un archivo por tipo: el de modificación más reciente.</p>'+
-    '<div class="card"><p id="realSummary" role="status">Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.</p><button class="btn" id="retryDocs" hidden>Reintentar conexión</button></div>'+
+    '<div class="card"><p id="realSummary" role="status">Cargando documentación…</p><div id="realFreshness"></div><button class="btn" id="retryDocs" hidden>Reintentar conexión</button></div>'+
     fleetFilters(S.docs)+'<div class="card download-panel"><div class="row"><strong id="realSelected" aria-live="polite"></strong><span class="sp"></span><button class="btn" id="realSelect">Seleccionar resultados</button><button class="btn" id="realClear">Quitar selección</button><button class="btn p" id="realZip" disabled>Descargar documentación</button></div><p class="mut" id="selectionHint"></p><div class="selection-list" id="selectedList"></div></div>'+
     '<p id="realResultCount" class="mut"></p><div class="tw"><table><thead><tr><th>Selección</th><th>Patente</th><th>Interno</th><th>Archivos</th><th>Documentos</th></tr></thead><tbody id="realBody"></tbody></table></div>';
   const container=$('#realBody'),summary=$('#realSummary');let manifest=null;
@@ -64,11 +80,13 @@ function realDocumentacion() {
     container.querySelectorAll('[data-real-show]').forEach(button=>button.onclick=()=>modal('<h3 id="dialogTitle">Documentos · '+esc(button.dataset.realShow)+'</h3>'+automaticFileList(manifest.byPlate[button.dataset.realShow]||[])+automaticCoverageNote(manifest)+'<button class="btn" data-x>Cerrar</button>'));
   };
   const connect=async(force=false)=>{
-    summary.textContent='Consultando documentos en la red de IHSA… La primera consulta puede tardar unos minutos.';$('#retryDocs').hidden=true;
+    if(!manifest)summary.textContent='Preparando la lista de documentos. La primera lectura desde IHSA puede demorar; las siguientes usan la lista guardada.';$('#retryDocs').hidden=true;
     try {
       manifest=await getAutomaticDocuments(force);if(!container.isConnected)return;
       summary.textContent=manifest.matchedUnits+' patentes con archivos · Solo VTV/RTO, seguro y cédula · '+manifest.unmatched+' archivos de esos tipos sin asociación única · '+manifest.excludedFolders+' carpeta(s) de bajas excluida(s).'+(manifest.readErrors?' Lectura parcial: '+manifest.readErrors+' errores.':'');
+      $('#realFreshness').innerHTML=automaticFreshnessNote(manifest);
       draw();
+      if(manifest.cached||manifest.refreshing)setTimeout(()=>{if(container.isConnected)connect(true);},5000);
     }catch(error){if(container.isConnected){manifest=null;summary.textContent=error.message;$('#retryDocs').hidden=false;draw();}}
   };
   $('#retryDocs').onclick=()=>connect(true);

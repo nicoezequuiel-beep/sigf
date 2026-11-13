@@ -17,7 +17,8 @@ Para trasladarla a otra computadora, copiá la carpeta completa o descomprimí e
 - 10 registros no tienen fecha de VTV; aparecen como "Sin dato". El punto del Excel en el móvil 0 (C547550) se interpreta como fecha no informada.
 - Los indicadores de VTV se calculan al consultar: vencida antes de hoy, próxima desde hoy hasta 30 días, vigente después de 30 días.
 - Se usa únicamente Listado: las otras hojas son resúmenes y no se suman como nuevos móviles.
-- Exportar CSV descarga los resultados filtrados para abrir en Excel.
+- En Unidades, marcá las casillas de los móviles y usá **Exportar seleccionados** para descargar el CSV y abrirlo en Excel. **Seleccionar resultados** agrega los móviles del filtro actual; **Quitar selección** limpia la lista. La selección se conserva al cambiar filtros o navegar entre pantallas durante la sesión y es independiente de la selección de Descarga de documentación. Para exportar toda la flota, limpiá los filtros y usá Seleccionar resultados. El botón de exportación se habilita al elegir al menos un móvil.
+- La presentación sigue la última renovación de Lavadores: navegación horizontal, tipografía Inter, indicadores con separadores y modo claro/oscuro, con adaptación a celular.
 
 ## Ediciones
 Las altas y ediciones se guardan en el almacenamiento de este navegador.
@@ -44,7 +45,9 @@ La ficha de cada móvil consulta automáticamente los archivos del servidor por 
 Cada tarjeta incluye Ver y Descargar. Ver abre PDF e imágenes compatibles en una pestaña nueva sin forzar descarga; Descargar conserva la descarga del archivo. Otros formatos requieren descargar el documento para abrirlo.
 El servicio usa la cuenta de Windows que lo inicia y necesita permiso de lectura sobre la carpeta compartida. Nunca escribe en ella. Recibe peticiones del mismo origen que la página, no habilita CORS y solo publica los archivos de la interfaz y documentos presentes en el índice autorizado. No sirve el repositorio ni los índices privados como carpetas web.
 
-El primer acceso indexa las subcarpetas del servidor, incluida Nación Seguros. Se omiten por completo las carpetas que contengan **Vehículos bajas**, en cualquier nivel, y no se siguen enlaces o junctions. Se omiten Thumbs.db, Desktop.ini y temporales de Office. La revisión se renueva al consultar si pasaron cinco minutos; el navegador reutiliza el resultado hasta un minuto. No se copian todos los documentos a esta computadora.
+Al iniciar el servicio se indexan en segundo plano las subcarpetas del servidor, incluida Nación Seguros. La última lista se conserva en `outputs/documentacion-cache.local.json` para mostrarla también después de reiniciar, sin esperar otro recorrido completo. Al consultar después de cinco minutos se actualiza en segundo plano; mientras tanto se muestra la lista guardada con su fecha de lectura y una advertencia si falla la conexión. La primera lectura sin caché sigue dependiendo de la velocidad del recurso compartido. El navegador comprueba cada cinco segundos las actualizaciones pendientes y reutiliza los resultados completos hasta un minuto. Solo se guardan nombres y metadatos, no copias de los documentos. La caché y su archivo temporal son privados y no deben publicarse.
+
+Se omiten por completo las carpetas que contengan **Vehículos bajas**, en cualquier nivel, y no se siguen enlaces o junctions. Se omiten Thumbs.db, Desktop.ini y temporales de Office.
 
 La ficha, la descarga individual y el ZIP incluyen únicamente archivos cuyo nombre contenga VTV o RTO, Seguro/Seguros o Cédula/Cedula, sin distinguir mayúsculas ni tildes. La asociación necesita una patente reconocible y única en la ruta, presente en el Excel; puede estar en el nombre de archivo o en su carpeta. Un nombre con otra patente genera conflicto y no se asocia. El nombre de la carpeta no determina el tipo documental. Títulos, actas, facturas y otros archivos quedan excluidos si no cumplen el filtro de nombre. No se utiliza el interno como sustituto. Se elige un único archivo por tipo y patente: el de mayor fecha de modificación entre todas las carpetas asociadas. Si hay empate, se elige la primera ruta en orden alfabético. No se interpreta el año escrito en el nombre ni la fecha de vencimiento para esta selección. Para la cédula también se elige un solo archivo, aunque frente y dorso estén separados. La ficha y el visor de descargas presentan tres tarjetas: VTV, Seguro y Cédula, con nombre, fecha de modificación y botón de descarga; los tipos faltantes indican Sin archivo. Los seguros sin patente única quedan excluidos.
 
@@ -74,6 +77,7 @@ Luego ejecutar **Iniciar SIGF.cmd**. Para un alojamiento permanente, Sistemas pu
 ```powershell
 python scripts/test_servidor_documentacion.py
 node scripts/verificar_documentacion_intranet.cjs
+node scripts/verificar_diseno_exportacion.cjs
 python scripts/verificar_conexion_documental_real.py
 ```
 Las dos primeras verificaciones usan documentos sintéticos en una carpeta temporal. La última lee la configuración privada y comprueba documentos reales, descarga individual y ZIP sin modificar el origen. No publica copias de documentos en el proyecto.
